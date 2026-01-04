@@ -1,0 +1,12 @@
+services:
+  bot:
+    build: .
+    container_name: expense_tracker_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: ["watchfiles", "python app/main.py", "/app/app"]
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./reports:/app/reports
