@@ -81,3 +81,17 @@ class Payment(Base):
     )
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     overdue_last_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class Income(Base):
+    __tablename__ = "income"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    description: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(50), default="Kirim")
+    date: Mapped[datetime_date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now(timezone.utc)
+    )

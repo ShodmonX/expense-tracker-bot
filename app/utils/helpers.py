@@ -79,17 +79,32 @@ def get_month_range(year: int = None, month: int = None) -> Tuple[date, date]:
 def format_report_message(report_data: dict) -> str:
     """Format report data into readable message"""
     period = report_data.get("period", "")
-    total = report_data.get("total", 0)
+    total_expenses = report_data.get("total_expenses", 0)
+    total_income = report_data.get("total_income", 0)
+    balance = report_data.get("balance", 0)
     category_totals = report_data.get("category_totals", {})
     
     message = f"📊 **{period}**\n\n"
-    message += f"💰 **Jami harajat:** {format_amount(total)} so'm\n"
+    
+    # Income section
+    message += f"💵 **Jami kirim:** {format_amount(total_income)} so'm\n"
+    message += f"📝 **Kirimlar soni:** {len(report_data.get('incomes', []))}\n\n"
+    
+    # Expense section
+    message += f"💸 **Jami harajat:** {format_amount(total_expenses)} so'm\n"
     message += f"📝 **Harajatlar soni:** {len(report_data.get('expenses', []))}\n\n"
     
+    # Balance section
+    if balance >= 0:
+        message += f"✅ **Balans:** {format_amount(balance)} so'm\n\n"
+    else:
+        message += f"❌ **Kamomad:** {format_amount(abs(balance))} so'm\n\n"
+    
+    # Category breakdown (only for expenses)
     if category_totals:
-        message += "📋 **Kategoriyalar bo'yicha:**\n"
+        message += "📋 **Harajatlar kategoriyalar bo'yicha:**\n"
         for category, amount in sorted(category_totals.items(), key=lambda x: x[1], reverse=True):
-            percentage = (amount / total * 100) if total > 0 else 0
+            percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
             message += f"• {category}: {format_amount(amount)} so'm ({percentage:.1f}%)\n"
     
     return message

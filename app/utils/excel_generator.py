@@ -37,7 +37,7 @@ async def generate_excel_report(report_data: Dict, filename: str = None) -> str:
     ws['A1'].alignment = title_alignment
     
     # Headers
-    headers = ["Sana", "Kategoriya", "Miqdor (so'm)", "Izoh", "Turi"]
+    headers = ["Sana", "Turi", "Kategoriya", "Miqdor (so'm)", "Izoh"]
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=3, column=col_num)
         cell.value = header
@@ -48,28 +48,60 @@ async def generate_excel_report(report_data: Dict, filename: str = None) -> str:
     
     # Data
     row_num = 4
-    expenses = report_data.get("expenses", [])
     
-    for expense in expenses:
-        ws.cell(row=row_num, column=1, value=expense.date.strftime("%d.%m.%Y")).border = thin_border
-        ws.cell(row=row_num, column=2, value=expense.category).border = thin_border
+    # Add income data first
+    incomes = report_data.get("incomes", [])
+    for income in incomes:
+        ws.cell(row=row_num, column=1, value=income.date.strftime("%d.%m.%Y")).border = thin_border
+        ws.cell(row=row_num, column=2, value="KIRIM").border = thin_border
+        ws.cell(row=row_num, column=3, value=income.category).border = thin_border
         
-        amount_cell = ws.cell(row=row_num, column=3, value=expense.amount)
+        amount_cell = ws.cell(row=row_num, column=4, value=income.amount)
         amount_cell.number_format = '#,##0'
         amount_cell.font = currency_font
         amount_cell.alignment = currency_alignment
         amount_cell.border = thin_border
         
-        ws.cell(row=row_num, column=4, value=expense.description or "").border = thin_border
-        ws.cell(row=row_num, column=5, value=expense.expense_type.value).border = thin_border
+        ws.cell(row=row_num, column=5, value=income.description or "").border = thin_border
+        row_num += 1
+    
+    # Add expense data
+    expenses = report_data.get("expenses", [])
+    for expense in expenses:
+        ws.cell(row=row_num, column=1, value=expense.date.strftime("%d.%m.%Y")).border = thin_border
+        ws.cell(row=row_num, column=2, value="HARAJAT").border = thin_border
+        ws.cell(row=row_num, column=3, value=expense.category).border = thin_border
+        
+        amount_cell = ws.cell(row=row_num, column=4, value=expense.amount)
+        amount_cell.number_format = '#,##0'
+        amount_cell.font = currency_font
+        amount_cell.alignment = currency_alignment
+        amount_cell.border = thin_border
+        
+        ws.cell(row=row_num, column=5, value=expense.description or "").border = thin_border
         row_num += 1
     
     # Summary
     row_num += 1
-    ws.cell(row=row_num, column=2, value="JAMI:").font = Font(bold=True)
-    total_cell = ws.cell(row=row_num, column=3, value=report_data.get("total", 0))
-    total_cell.font = Font(bold=True)
-    total_cell.number_format = '#,##0'
+    ws.cell(row=row_num, column=1, value="JAMI KIRIM:").font = Font(bold=True)
+    income_total_cell = ws.cell(row=row_num, column=3, value=report_data.get("total_income", 0))
+    income_total_cell.font = Font(bold=True)
+    income_total_cell.number_format = '#,##0'
+    
+    row_num += 1
+    ws.cell(row=row_num, column=1, value="JAMI HARAJAT:").font = Font(bold=True)
+    expense_total_cell = ws.cell(row=row_num, column=3, value=report_data.get("total_expenses", 0))
+    expense_total_cell.font = Font(bold=True)
+    expense_total_cell.number_format = '#,##0'
+    
+    row_num += 1
+    ws.cell(row=row_num, column=1, value="BALANS:").font = Font(bold=True)
+    balance = report_data.get("balance", 0)
+    balance_total_cell = ws.cell(row=row_num, column=3, value=balance)
+    balance_total_cell.font = Font(bold=True)
+    balance_total_cell.number_format = '#,##0'
+    if balance < 0:
+        balance_total_cell.fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
     
     # Category summary
     if report_data.get("category_totals"):
@@ -91,11 +123,22 @@ async def generate_excel_report(report_data: Dict, filename: str = None) -> str:
         row_num += 1
         
         monthly_totals = report_data.get("monthly_totals", {})
-        for month, amount in monthly_totals.items():
+        for month, data in monthly_totals.items():
             month_name = datetime(2024, month, 1).strftime("%B")
             ws.cell(row=row_num, column=1, value=month_name)
-            amount_cell = ws.cell(row=row_num, column=2, value=amount)
-            amount_cell.number_format = '#,##0'
+            
+            if isinstance(data, dict):
+                # New format - show balance
+                balance = data.get('balance', 0)
+                amount_cell = ws.cell(row=row_num, column=2, value=balance)
+                amount_cell.number_format = '#,##0'
+                if balance < 0:
+                    amount_cell.fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+            else:
+                # Old format - show amount
+                amount_cell = ws.cell(row=row_num, column=2, value=data)
+                amount_cell.number_format = '#,##0'
+            
             row_num += 1
     
     # Auto-adjust column widths

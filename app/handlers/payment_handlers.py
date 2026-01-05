@@ -285,6 +285,37 @@ async def save_payment(message: Message, state: FSMContext):
     await message.answer(message_text, reply_markup=get_main_menu())
     await state.clear()
 
+@router.callback_query(F.data == "monthly_payment_summary")
+async def show_monthly_payment_summary(callback: CallbackQuery):
+    await callback.answer()
+    db = next(get_db())
+    summary = PaymentService.get_monthly_payment_summary(db, callback.from_user.id)
+    
+    # Format the summary message
+    message_text = f"💵 **{summary['month_name']} oylik to'lovlar reja**\n\n"
+    
+    if summary['payment_count'] == 0:
+        message_text += "🎉 Bu oy uchun to'lovlar rejalashtirilmagan!"
+    else:
+        message_text += f"📊 Jami to'lovlar soni: {summary['payment_count']} ta\n"
+        message_text += f"💰 Jami summa: {summary['total_amount']:,.0f} so'm\n\n"
+        
+        message_text += "**To'lovlar ro'yxati:**\n"
+        for i, payment in enumerate(summary['payments'], 1):
+            amount_text = f"{payment.amount:,.0f}".replace(",", " ")
+            date_text = payment.due_date.strftime("%d.%m.%Y")
+            desc_text = getattr(payment, "description", "") or payment.title
+            
+            message_text += f"{i}. 📅 {date_text} | 💵 {amount_text} so'm\n"
+            message_text += f"   📝 {desc_text}\n"
+    
+    await callback.message.edit_text(
+        message_text,
+        reply_markup=get_monthly_payment_summary_keyboard(),
+        parse_mode="Markdown"
+    )
+
+
 @router.callback_query(F.data == "upcoming_payments")
 async def show_upcoming_payments(callback: CallbackQuery):
     await callback.answer()

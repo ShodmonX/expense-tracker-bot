@@ -5,16 +5,82 @@ def get_main_menu():
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="💰 Harajat qo'shish", callback_data="add_expense"),
-        InlineKeyboardButton(text="💳 To'lov qo'shish", callback_data="add_payment")
+        InlineKeyboardButton(text="💵 Kirim qo'shish", callback_data="add_income")
     )
     builder.row(
-        InlineKeyboardButton(text="📊 Hisobotlar", callback_data="reports_menu"),
+        InlineKeyboardButton(text="💳 To'lov qo'shish", callback_data="add_payment"),
+        InlineKeyboardButton(text="📊 Hisobotlar", callback_data="reports_menu")
+    )
+    builder.row(
+        InlineKeyboardButton(text="💰 Balans", callback_data="balance_summary"),
         InlineKeyboardButton(text="🔔 Kelgusi to'lovlar", callback_data="upcoming_payments")
     )
     builder.row(
         InlineKeyboardButton(text="🧾 Boshqarish", callback_data="manage_menu"),
         InlineKeyboardButton(text="⚙️ Sozlamalar", callback_data="settings"),
         InlineKeyboardButton(text="ℹ️ Yordam", callback_data="help")
+    )
+    return builder.as_markup()
+
+def get_income_categories_keyboard():
+    builder = InlineKeyboardBuilder()
+    categories = [
+        "Maosh", "Biznes", "Investitsiya", "Gift", "Bonus", 
+        "Ijaraga berish", "Qo'shimcha ish", "Boshqa"
+    ]
+    
+    # Create rows with 2 buttons each
+    for i in range(0, len(categories), 2):
+        row_buttons = []
+        row_buttons.append(InlineKeyboardButton(
+            text=categories[i], 
+            callback_data=f"income_category_{categories[i]}"
+        ))
+        if i + 1 < len(categories):
+            row_buttons.append(InlineKeyboardButton(
+                text=categories[i + 1], 
+                callback_data=f"income_category_{categories[i + 1]}"
+            ))
+        builder.row(*row_buttons)
+    
+    return builder.as_markup()
+
+def get_balance_summary_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="balance_summary"),
+        InlineKeyboardButton(text="📋 Batafsil", callback_data="balance_detail")
+    )
+    builder.row(
+        InlineKeyboardButton(text="📊 Yillik xulosa", callback_data="balance_yearly"),
+        InlineKeyboardButton(text="🔙 Ortga", callback_data="main_menu")
+    )
+    return builder.as_markup()
+
+def get_balance_detail_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="balance_detail"),
+        InlineKeyboardButton(text="📊 Xulosa", callback_data="balance_summary")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔙 Ortga", callback_data="main_menu")
+    )
+    return builder.as_markup()
+
+def get_income_summary_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="income_summary"),
+        InlineKeyboardButton(text="🔙 Ortga", callback_data="main_menu"),
+    )
+    return builder.as_markup()
+
+def get_monthly_payment_summary_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="monthly_payment_summary"),
+        InlineKeyboardButton(text="🔙 Ortga", callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -390,6 +456,22 @@ def get_settings_keyboard():
 
 def get_cancel_keyboard():
     builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel"))
+    return builder.as_markup()
+
+def get_today_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="📅 Bugun", callback_data="use_today_date"),
+        InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel"),
+    )
+    return builder.as_markup()
+
+def get_skip_description_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="⏭ Izohni o'tkazib yuborish", callback_data="skip_income_description"),
+    )
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel"))
     return builder.as_markup()
 

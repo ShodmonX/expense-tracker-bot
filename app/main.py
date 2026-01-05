@@ -10,7 +10,7 @@ from sqlalchemy import text
 from config import config
 from database import engine, Base
 from handlers import expense_handlers, payment_handlers, report_handlers
-from handlers import main_handlers
+from handlers import main_handlers, income_handlers, balance_handlers
 from keyboards import (
     get_main_menu,
     get_manage_menu,
@@ -30,6 +30,8 @@ routers = [
     main_handlers.router,
     expense_handlers.router,
     payment_handlers.router,
+    income_handlers.router,
+    balance_handlers.router,
     report_handlers.router
 ]
 
@@ -51,6 +53,19 @@ def _ensure_payments_schema():
             conn.execute(text("ALTER TABLE payments ADD COLUMN category TEXT"))
         if "occurrences_left" not in existing_cols:
             conn.execute(text("ALTER TABLE payments ADD COLUMN occurrences_left INTEGER"))
+
+        # Ensure income table exists
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS income (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                description TEXT,
+                category TEXT DEFAULT 'Kirim',
+                date DATE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
 
         conn.commit()
 

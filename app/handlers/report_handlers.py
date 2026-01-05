@@ -141,10 +141,21 @@ async def yearly_report(callback: CallbackQuery):
     if report_data.get("monthly_totals"):
         message += "\n\n📈 **Oylik hisobot:**\n"
         monthly_totals = report_data.get("monthly_totals", {})
-        for month, amount in monthly_totals.items():
-            if amount > 0:
+        for month, data in monthly_totals.items():
+            if isinstance(data, dict):
+                # New format with income, expenses, and balance
+                balance = data.get('balance', 0)
+                if balance >= 0:
+                    status = "✅"
+                else:
+                    status = "❌"
                 month_name = date(2024, month, 1).strftime("%B")
-                message += f"• {month_name}: {amount:,.0f} so'm\n"
+                message += f"• {month_name}: {status} {abs(balance):,.0f} so'm\n"
+            else:
+                # Old format (backward compatibility)
+                if data > 0:
+                    month_name = date(2024, month, 1).strftime("%B")
+                    message += f"• {month_name}: {data:,.0f} so'm\n"
     
     # Generate Excel file
     filename = await ReportService.create_excel_report(

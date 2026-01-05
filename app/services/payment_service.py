@@ -287,6 +287,41 @@ class PaymentService:
         ).order_by(Payment.due_date).all()
 
     @staticmethod
+    def get_monthly_payment_summary(db: Session, user_id: int) -> dict:
+        """
+        Calculate minimal monthly payments for the current month
+        Returns dict with total_amount, payment_count, and payments list
+        """
+        PaymentService.normalize_recurring_payments(db, user_id=user_id)
+        today = date.today()
+        
+        # Get the first and last day of current month
+        first_day_of_month = today.replace(day=1)
+        if today.month == 12:
+            last_day_of_month = date(today.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            last_day_of_month = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
+        payments = db.query(Payment).filter(
+            Payment.user_id == user_id,
+            Payment.due_date >= first_day_of_month,
+            Payment.due_date <= last_day_of_month,
+            Payment.is_paid == False,
+            Payment.is_skipped == False,
+        ).order_by(Payment.due_date).all()
+
+        total_amount = sum(p.amount for p in payments)
+        
+        return {
+            'total_amount': total_amount,
+            'payment_count': len(payments),
+            'payments': payments,
+            'month_name': today.strftime('%B %Y'),
+            'first_day': first_day_of_month,
+            'last_day': last_day_of_month
+        }
+
+    @staticmethod
     def get_payments_due_tomorrow(db: Session, user_id: int) -> List[Payment]:
         PaymentService.normalize_recurring_payments(db, user_id=user_id)
         tomorrow = date.today() + timedelta(days=1)
