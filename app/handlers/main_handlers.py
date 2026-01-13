@@ -30,10 +30,10 @@ async def command_handler(message: Message):
             db.commit()
 
         welcome_message = (
-            "👋 Assalomu alaykum! Harajatlar va to'lovlarni boshqarish botiga xush kelibsiz!\n\n"
+            "👋 Assalomu alaykum! Xarajatlar va to'lovlarni boshqarish botiga xush kelibsiz!\n\n"
             "📊 **Bot imkoniyatlari:**\n"
-            "• Kunlik, haftalik, oylik, yillik harajatlar\n"
-            "• Kelajakdagi harajatlar va to'lovlar\n"
+            "• Kunlik, haftalik, oylik, yillik xarajatlar\n"
+            "• Kelajakdagi xarajatlar va to'lovlar\n"
             "• Avtomatik eslatmalar (kunlik, oylik, yillik)\n"
             "• Excel formatida hisobotlar\n"
             "• Kategoriyalar bo'yicha tahlillar\n\n"
@@ -71,12 +71,12 @@ async def command_handler(message: Message):
         help_text = (
             "🆘 **Yordam**\n\n"
             "**Asosiy funksiyalar:**\n"
-            "1. **Harajat qo'shish** - kunlik, haftalik, oylik, yillik harajatlar\n"
+            "1. **Xarajat qo'shish** - kunlik, haftalik, oylik, yillik xarajatlar\n"
             "2. **To'lov qo'shish** - oylik, yillik, choraklik to'lovlar\n"
             "3. **Hisobotlar** - kunlik, haftalik, oylik, yillik hisobotlar\n"
             "4. **Eslatmalar** - to'lovlar uchun avtomatik eslatmalar\n\n"
             "**Foydalanish:**\n"
-            "• Harajat qo'shish uchun 'Harajat qo'shish' tugmasini bosing\n"
+            "• Xarajat qo'shish uchun 'Xarajat qo'shish' tugmasini bosing\n"
             "• Hisobot olish uchun kerakli davrni tanlang\n"
             "• Excel fayl avtomatik yuklanadi\n\n"
             "**Eslatmalar:**\n"
@@ -140,7 +140,7 @@ async def help_callback(callback: CallbackQuery):
     help_text = (
         "🆘 **Yordam**\n\n"
         "**Qo'llanma:**\n"
-        "1. Harajat qo'shish uchun 'Harajat qo'shish' tugmasini bosing\n"
+        "1. Xarajat qo'shish uchun 'Xarajat qo'shish' tugmasini bosing\n"
         "2. To'lov qo'shish uchun 'To'lov qo'shish' tugmasini bosing\n"
         "3. Hisobot olish uchun kerakli davrni tanlang\n"
         "4. Excel fayl avtomatik yuklanadi\n\n"

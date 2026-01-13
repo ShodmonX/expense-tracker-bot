@@ -91,8 +91,8 @@ def format_report_message(report_data: dict) -> str:
     message += f"📝 **Kirimlar soni:** {len(report_data.get('incomes', []))}\n\n"
     
     # Expense section
-    message += f"💸 **Jami harajat:** {format_amount(total_expenses)} so'm\n"
-    message += f"📝 **Harajatlar soni:** {len(report_data.get('expenses', []))}\n\n"
+    message += f"💸 **Jami xarajat:** {format_amount(total_expenses)} so'm\n"
+    message += f"📝 **Xarajatlar soni:** {len(report_data.get('expenses', []))}\n\n"
     
     # Balance section
     if balance >= 0:
@@ -102,7 +102,7 @@ def format_report_message(report_data: dict) -> str:
     
     # Category breakdown (only for expenses)
     if category_totals:
-        message += "📋 **Harajatlar kategoriyalar bo'yicha:**\n"
+        message += "📋 **Xarajatlar kategoriyalar bo'yicha:**\n"
         for category, amount in sorted(category_totals.items(), key=lambda x: x[1], reverse=True):
             percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
             message += f"• {category}: {format_amount(amount)} so'm ({percentage:.1f}%)\n"

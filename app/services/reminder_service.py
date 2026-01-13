@@ -122,8 +122,8 @@ class ReminderService:
             category_totals = ExpenseService.get_expenses_by_category(db, user_id, today, today)
             
             message = f"📊 **KUNLIK HISOBOT - {today.strftime('%d.%m.%Y')}**\n\n"
-            message += f"📈 Jami harajat: {total:,.0f} so'm\n"
-            message += f"📝 Harajatlar soni: {len(expenses)}\n\n"
+            message += f"📈 Jami xarajat: {total:,.0f} so'm\n"
+            message += f"📝 Xarajatlar soni: {len(expenses)}\n\n"
             message += "📋 **Kategoriyalar bo'yicha:**\n"
             
             for category, amount in category_totals.items():

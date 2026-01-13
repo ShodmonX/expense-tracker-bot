@@ -103,7 +103,7 @@ async def process_income_date(message: Message, state: FSMContext):
         await save_income(message, state, income_date)
     except ValueError:
         await message.answer(
-            "❌ Noto'g'ri sana formati. Iltimos, DD.MM.YYYYY formatida kiriting:\n\n"
+            "❌ Noto'g'ri sana formati. Iltimos, DD.MM.YYYY formatida kiriting:\n\n"
             "Masalan: 05.01.2026"
         )
 

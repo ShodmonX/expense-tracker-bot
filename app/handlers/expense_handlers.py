@@ -17,7 +17,7 @@ async def add_expense(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.update_data(user_id=callback.from_user.id)
     await callback.message.edit_text(
-        "Harajat miqdorini kiriting (so'm):\n\nMasalan: 150000 yoki 150 000",
+        "Xarajat miqdorini kiriting (so'm):\n\nMasalan: 150000 yoki 150 000",
         reply_markup=get_cancel_keyboard()
     )
     await state.set_state(ExpenseStates.waiting_for_amount)
@@ -131,7 +131,7 @@ async def save_expense(message: Message, state: FSMContext):
         is_future=False
     )
     
-    message_text = f"✅ Harajat muvaffaqiyatli qo'shildi!\n\n"
+    message_text = f"✅ Xarajat muvaffaqiyatli qo'shildi!\n\n"
     message_text += f"💰 Miqdor: {data['amount']:,.0f} so'm\n"
     message_text += f"📂 Kategoriya: {data['category']}\n"
     if data.get('description'):

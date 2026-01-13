@@ -27,9 +27,9 @@ async def show_balance_summary(callback: CallbackQuery):
         message_text += f"   O'tgan oydan qolgan: {balance['carry_over']:,.0f} so'm\n"
     
     # Expense section
-    message_text += f"\n💸 **HARAJATLAR:**\n"
-    message_text += f"   Jami harajat: {balance['total_expenses']:,.0f} so'm\n"
-    message_text += f"   Harajatlar soni: {balance['expense_count']} ta\n"
+    message_text += f"\n💸 **XARAJATLAR:**\n"
+    message_text += f"   Jami xarajat: {balance['total_expenses']:,.0f} so'm\n"
+    message_text += f"   Xarajatlar soni: {balance['expense_count']} ta\n"
     
     # Balance section
     message_text += f"\n📊 **BALANS:**\n"
@@ -70,7 +70,7 @@ async def show_yearly_balance(callback: CallbackQuery):
     
     message_text = f"📊 **{yearly_balance['year']} yillik balans xulosasi**\n\n"
     message_text += f"💵 Jami yillik kirim: {yearly_balance['total_yearly_income']:,.0f} so'm\n"
-    message_text += f"💸 Jami yillik harajat: {yearly_balance['total_yearly_expenses']:,.0f} so'm\n"
+    message_text += f"💸 Jami yillik xarajat: {yearly_balance['total_yearly_expenses']:,.0f} so'm\n"
     message_text += f"📊 Yillik balans: {yearly_balance['total_yearly_balance']:,.0f} so'm\n\n"
     
     message_text += "**Oylik ko'rsatkichlar:**\n"
@@ -108,7 +108,7 @@ async def show_balance_detail(callback: CallbackQuery):
         message_text += "   Bu oy kirimlar kiritilmagan.\n"
     
     # Detailed expense list
-    message_text += "\n💸 **HARAJATLAR DETALI:**\n"
+    message_text += "\n💸 **XARAJATLAR DETALI:**\n"
     if balance['expenses']:
         for i, expense in enumerate(balance['expenses'], 1):
             amount_text = f"{expense.amount:,.0f}".replace(",", " ")
@@ -116,12 +116,12 @@ async def show_balance_detail(callback: CallbackQuery):
             message_text += f"{i}. 📅 {date_text} | 💸 {amount_text} so'm\n"
             message_text += f"   📂 {expense.category} | 📝 {expense.description}\n"
     else:
-        message_text += "   Bu oy harajatlar kiritilmagan.\n"
+        message_text += "   Bu oy xarajatlar kiritilmagan.\n"
     
     # Summary
     message_text += f"\n📊 **JAMI:**\n"
     message_text += f"💵 Kirimlar: {balance['total_income']:,.0f} so'm ({balance['income_count']} ta)\n"
-    message_text += f"💸 Harajatlar: {balance['total_expenses']:,.0f} so'm ({balance['expense_count']} ta)\n"
+    message_text += f"💸 Xarajatlar: {balance['total_expenses']:,.0f} so'm ({balance['expense_count']} ta)\n"
     message_text += f"📊 Balans: {balance['available_balance']:,.0f} so'm\n"
     
     await callback.message.edit_text(

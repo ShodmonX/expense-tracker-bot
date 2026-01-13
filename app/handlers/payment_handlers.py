@@ -57,7 +57,7 @@ async def process_payment_frequency(callback: CallbackQuery, state: FSMContext):
 
     if frequency != PaymentFrequency.ONCE:
         await callback.message.edit_text(
-            "Bu to'lovni nechchi marta qilasiz? (masalan: 4)\n\n"
+            "Bu to'lovni necha marta qilasiz? (masalan: 4)\n\n"
             "Agar o'tkazib yuborsangiz, to'lov cheklanmaydi va avtomatik o'chmaydi.",
             reply_markup=get_skip_payment_occurrences_keyboard(),
         )
@@ -87,7 +87,7 @@ async def process_payment_weekday(callback: CallbackQuery, state: FSMContext):
     await state.update_data(weekday=weekday, due_date=due_date)
 
     await callback.message.edit_text(
-        "Bu to'lovni nechchi marta qilasiz? (masalan: 4)\n\n"
+        "Bu to'lovni necha marta qilasiz? (masalan: 4)\n\n"
         "Agar o'tkazib yuborsangiz, to'lov cheklanmaydi va avtomatik o'chmaydi.",
         reply_markup=get_skip_payment_occurrences_keyboard(),
     )
@@ -117,7 +117,7 @@ async def process_payment_day_of_month(callback: CallbackQuery, state: FSMContex
     await state.update_data(day_of_month=day_of_month, due_date=candidate)
 
     await callback.message.edit_text(
-        "Bu to'lovni nechchi marta qilasiz? (masalan: 4)\n\n"
+        "Bu to'lovni necha marta qilasiz? (masalan: 4)\n\n"
         "Agar o'tkazib yuborsangiz, to'lov cheklanmaydi va avtomatik o'chmaydi.",
         reply_markup=get_skip_payment_occurrences_keyboard(),
     )
@@ -292,7 +292,7 @@ async def show_monthly_payment_summary(callback: CallbackQuery):
     summary = PaymentService.get_monthly_payment_summary(db, callback.from_user.id)
     
     # Format the summary message
-    message_text = f"💵 **{summary['month_name']} oylik to'lovlar reja**\n\n"
+    message_text = f"💵 **{summary['month_name']} oylik to'lovlar rejasi**\n\n"
     
     if summary['payment_count'] == 0:
         message_text += "🎉 Bu oy uchun to'lovlar rejalashtirilmagan!"
@@ -481,7 +481,7 @@ async def confirm_pay_payment_callback(callback: CallbackQuery, state: FSMContex
     msg += f"📝 {payment.description}\n"
     msg += f"💰 {payment.amount:,.0f} so'm\n"
     msg += f"📅 Reja sanasi: {payment.due_date.strftime('%d.%m.%Y')}\n"
-    msg += "\nEslatma: harajat bugungi sana bilan yoziladi."
+    msg += "\nEslatma: xarajat bugungi sana bilan yoziladi."
 
     prev = await state.get_data()
     await state.update_data(
@@ -529,7 +529,7 @@ async def ask_pay_amount_callback(callback: CallbackQuery, state: FSMContext):
     msg += f"📝 {payment.description}\n"
     msg += f"📂 {payment.category or 'To\'lov'}\n"
     msg += f"📅 Reja sanasi: {payment.due_date.strftime('%d.%m.%Y')}\n"
-    msg += f"💰 Reja summa: {payment.amount:,.0f} so'm\n\n"
+    msg += f"💰 Reja summasi: {payment.amount:,.0f} so'm\n\n"
     msg += "Masalan: 450000 yoki 450 000"
 
     await callback.message.edit_text(
@@ -610,7 +610,7 @@ async def do_pay_payment_custom_callback(callback: CallbackQuery, state: FSMCont
 
     if paid:
         await callback.message.edit_text(
-            "✅ To'lov belgilandi va harajatlar ro'yxatiga qo'shildi.",
+            "✅ To'lov belgilandi va xarajatlar ro'yxatiga qo'shildi.",
             reply_markup=get_main_menu(),
         )
     else:
@@ -652,7 +652,7 @@ async def do_pay_payment_callback(callback: CallbackQuery, state: FSMContext):
 
     if paid:
         await callback.message.edit_text(
-            "✅ To'lov belgilandi va harajatlar ro'yxatiga qo'shildi.",
+            "✅ To'lov belgilandi va xarajatlar ro'yxatiga qo'shildi.",
             reply_markup=get_main_menu(),
         )
     else:

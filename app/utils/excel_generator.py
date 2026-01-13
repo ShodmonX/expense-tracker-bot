@@ -69,7 +69,7 @@ async def generate_excel_report(report_data: Dict, filename: str = None) -> str:
     expenses = report_data.get("expenses", [])
     for expense in expenses:
         ws.cell(row=row_num, column=1, value=expense.date.strftime("%d.%m.%Y")).border = thin_border
-        ws.cell(row=row_num, column=2, value="HARAJAT").border = thin_border
+        ws.cell(row=row_num, column=2, value="XARAJAT").border = thin_border
         ws.cell(row=row_num, column=3, value=expense.category).border = thin_border
         
         amount_cell = ws.cell(row=row_num, column=4, value=expense.amount)
@@ -89,7 +89,7 @@ async def generate_excel_report(report_data: Dict, filename: str = None) -> str:
     income_total_cell.number_format = '#,##0'
     
     row_num += 1
-    ws.cell(row=row_num, column=1, value="JAMI HARAJAT:").font = Font(bold=True)
+    ws.cell(row=row_num, column=1, value="JAMI XARAJAT:").font = Font(bold=True)
     expense_total_cell = ws.cell(row=row_num, column=3, value=report_data.get("total_expenses", 0))
     expense_total_cell.font = Font(bold=True)
     expense_total_cell.number_format = '#,##0'
