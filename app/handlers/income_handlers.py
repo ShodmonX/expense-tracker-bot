@@ -157,7 +157,8 @@ async def save_income(message_or_callback, state: FSMContext, income_date: date)
         error_msg = f"❌ Ma'lumotlar to'liq emas. Yetishmayotgan maydonlar: {', '.join(missing_fields)}"
         print(f"DEBUG: Missing fields: {missing_fields}")
         if hasattr(message_or_callback, 'message'):
-            await message_or_callback.message.edit_text(error_msg, reply_markup=get_main_menu())
+            await message_or_callback.message.edit_text(error_msg)
+            await message_or_callback.message.answer("Asosiy menyu:", reply_markup=get_main_menu())
         else:
             await message_or_callback.answer(error_msg, reply_markup=get_main_menu())
         await state.clear()
@@ -183,9 +184,9 @@ async def save_income(message_or_callback, state: FSMContext, income_date: date)
         # Callback query
         await message_or_callback.message.edit_text(
             message_text,
-            reply_markup=get_main_menu(),
             parse_mode="Markdown"
         )
+        await message_or_callback.message.answer("Asosiy menyu:", reply_markup=get_main_menu())
     else:
         # Regular message
         await message_or_callback.answer(
@@ -274,6 +275,6 @@ async def cancel_income(callback: CallbackQuery, state: FSMContext):
         return
     await state.clear()
     await callback.message.edit_text(
-        "❌ Bekor qilindi.",
-        reply_markup=get_main_menu() # type: ignore
+        "❌ Bekor qilindi."
     )
+    await callback.message.answer("Asosiy menyu:", reply_markup=get_main_menu())

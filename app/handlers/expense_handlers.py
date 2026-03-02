@@ -7,10 +7,15 @@ from states import ExpenseStates
 from keyboards import *
 from services.expense_service import ExpenseService
 from models import ExpenseType
+from config import config
 from utils.helpers import parse_amount, parse_date
 from database import run_db
 
 router = Router()
+
+
+def _is_admin(user_id: int) -> bool:
+    return bool(config.ADMIN_ID) and user_id == config.ADMIN_ID
 
 @router.message(F.text == "💰 Xarajat qo'shish")
 async def add_expense_message(message: Message, state: FSMContext):
@@ -212,9 +217,10 @@ async def manage_last_expenses(callback: CallbackQuery):
         await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
         return
     if not expenses:
-        await callback.message.edit_text(
-            "Oxirgi xarajatlar topilmadi.",
-            reply_markup=get_manage_menu(), # type: ignore
+        await callback.message.edit_text("Oxirgi xarajatlar topilmadi.")
+        await callback.message.answer(
+            "Boshqarish:",
+            reply_markup=get_manage_menu(is_admin=_is_admin(callback.from_user.id)),
         )
         return
 
@@ -243,9 +249,10 @@ async def delete_expense_callback(callback: CallbackQuery):
         return
     if not expenses:
         text = "Oxirgi xarajatlar topilmadi." if deleted else "Xarajat topilmadi yoki o'chirish mumkin emas."
-        await callback.message.edit_text(
-            text,
-            reply_markup=get_manage_menu(), # type: ignore
+        await callback.message.edit_text(text)
+        await callback.message.answer(
+            "Boshqarish:",
+            reply_markup=get_manage_menu(is_admin=_is_admin(callback.from_user.id)),
         )
         return
 

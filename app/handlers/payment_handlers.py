@@ -15,6 +15,28 @@ from database import run_db
 
 router = Router()
 
+
+def _is_admin(user_id: int) -> bool:
+    return bool(config.ADMIN_ID) and user_id == config.ADMIN_ID
+
+
+async def _edit_then_show_main_menu(callback: CallbackQuery, text: str) -> None:
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        return
+    await callback.message.edit_text(text)
+    await callback.message.answer("Asosiy menyu:", reply_markup=get_main_menu())
+
+
+async def _edit_then_show_manage_menu(callback: CallbackQuery, text: str) -> None:
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        return
+    await callback.message.edit_text(text)
+    await callback.message.answer(
+        "Boshqarish:",
+        reply_markup=get_manage_menu(is_admin=_is_admin(callback.from_user.id)),
+    )
+
+
 @router.message(F.text == "💳 To'lov qo'shish")
 async def add_payment_message(message: Message, state: FSMContext):
     if message.from_user is None:
@@ -407,10 +429,7 @@ async def show_upcoming_payments(callback: CallbackQuery):
     payments = await run_db(PaymentService.get_upcoming_payments, callback.from_user.id, days_ahead=30)
     
     if not payments:
-        await callback.message.edit_text(
-            "🔔 Keyingi 30 kun ichida to'lovlar topilmadi.",
-            reply_markup=get_main_menu(), # type: ignore # type:ignore
-        )
+        await _edit_then_show_main_menu(callback, "🔔 Keyingi 30 kun ichida to'lovlar topilmadi.")
         return
 
     await callback.message.edit_text(
@@ -437,10 +456,7 @@ async def view_upcoming_payment(callback: CallbackQuery):
     payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
 
     if not payment:
-        await callback.message.edit_text(
-            "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(), # type: ignore # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "❌ To'lov topilmadi yoki allaqachon bajarilgan.")
         return
 
     today = _local_today()
@@ -494,10 +510,7 @@ async def manage_future_payments(callback: CallbackQuery):
     payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
 
     if not payments:
-        await callback.message.edit_text(
-            "Kelajakdagi to'lovlar topilmadi.",
-            reply_markup=get_manage_menu(), # type: ignore # type: ignore
-        )
+        await _edit_then_show_manage_menu(callback, "Kelajakdagi to'lovlar topilmadi.")
         return
 
     await callback.message.edit_text(
@@ -524,10 +537,7 @@ async def view_manage_future_payment(callback: CallbackQuery, state: FSMContext)
     payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
 
     if not payment:
-        await callback.message.edit_text(
-            "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_manage_menu(), # type: ignore # type: ignore
-        )
+        await _edit_then_show_manage_menu(callback, "❌ To'lov topilmadi yoki allaqachon bajarilgan.")
         return
 
     await state.update_data(
@@ -591,10 +601,7 @@ async def confirm_pay_payment_callback(callback: CallbackQuery, state: FSMContex
 
     payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
     if not payment:
-        await callback.message.edit_text(
-            "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(), # type: ignore # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "❌ To'lov topilmadi yoki allaqachon bajarilgan.")
         return
 
     msg = "✅ To'lovni 'To\'landi' deb belgilaysizmi?\n\n"
@@ -634,10 +641,7 @@ async def ask_pay_amount_callback(callback: CallbackQuery, state: FSMContext):
 
     payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
     if not payment:
-        await callback.message.edit_text(
-            "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(), # type: ignore # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "❌ To'lov topilmadi yoki allaqachon bajarilgan.")
         return
 
     data = await state.get_data()
@@ -709,10 +713,7 @@ async def do_pay_payment_custom_callback(callback: CallbackQuery, state: FSMCont
     paid_amount = data.get("pay_amount")
     origin_manage = bool(data.get("pay_origin_manage", False))
     if paid_amount is None:
-        await callback.message.edit_text(
-            "❌ Summa topilmadi. Qaytadan urinib ko'ring.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "❌ Summa topilmadi. Qaytadan urinib ko'ring.")
         await state.clear()
         return
 
@@ -733,22 +734,13 @@ async def do_pay_payment_custom_callback(callback: CallbackQuery, state: FSMCont
                 reply_markup=get_manage_future_payments_list_keyboard(payments),
             )
         else:
-            await callback.message.edit_text(
-                "Kelajakdagi to'lovlar topilmadi.",
-                reply_markup=get_manage_menu(), # type: ignore
-            )
+            await _edit_then_show_manage_menu(callback, "Kelajakdagi to'lovlar topilmadi.")
         return
 
     if paid:
-        await callback.message.edit_text(
-            "✅ To'lov belgilandi va xarajatlar ro'yxatiga qo'shildi.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "✅ To'lov belgilandi va xarajatlar ro'yxatiga qo'shildi.")
     else:
-        await callback.message.edit_text(
-            "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "❌ To'lov topilmadi yoki allaqachon bajarilgan.")
 
 
 @router.callback_query(F.data.startswith("do_pay_payment_"))
@@ -776,10 +768,7 @@ async def do_pay_payment_callback(callback: CallbackQuery, state: FSMContext):
     payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
     if origin_manage or _is_manage_future_payments_message(callback.message.text if callback.message else None):
         if not payments:
-            await callback.message.edit_text(
-                "Kelajakdagi to'lovlar topilmadi.",
-                reply_markup=get_manage_menu(), # type: ignore
-            )
+            await _edit_then_show_manage_menu(callback, "Kelajakdagi to'lovlar topilmadi.")
         else:
             await callback.message.edit_text(
                 "Kelajakdagi to'lovlar:\n\nTo'lovni ko'rish uchun tanlang:",
@@ -788,15 +777,9 @@ async def do_pay_payment_callback(callback: CallbackQuery, state: FSMContext):
         return
 
     if paid:
-        await callback.message.edit_text(
-            "✅ To'lov belgilandi va xarajatlar ro'yxatiga qo'shildi.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "✅ To'lov belgilandi va xarajatlar ro'yxatiga qo'shildi.")
     else:
-        await callback.message.edit_text(
-            "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "❌ To'lov topilmadi yoki allaqachon bajarilgan.")
 
 
 @router.callback_query(F.data.startswith("cancel_pay_payment_"))
@@ -812,10 +795,7 @@ async def cancel_pay_payment_callback(callback: CallbackQuery):
             reply_markup=get_manage_future_payments_list_keyboard(payments),
         )
     else:
-        await callback.message.edit_text(
-            "Amal bekor qilindi.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "Amal bekor qilindi.")
 
 
 @router.callback_query(F.data.startswith("skip_payment_"))
@@ -843,15 +823,9 @@ async def skip_payment_callback(callback: CallbackQuery):
         return
 
     if skipped:
-        await callback.message.edit_text(
-            "⏭ To'lov shu davr uchun o'tkazib yuborildi.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "⏭ To'lov shu davr uchun o'tkazib yuborildi.")
     else:
-        await callback.message.edit_text(
-            "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "❌ To'lov topilmadi yoki allaqachon bajarilgan.")
 
 @router.callback_query(F.data.startswith("confirm_delete_payment_"))
 async def confirm_delete_payment_callback(callback: CallbackQuery):
@@ -870,10 +844,7 @@ async def confirm_delete_payment_callback(callback: CallbackQuery):
 
     payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
     if not payment:
-        await callback.message.edit_text(
-            "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_manage_menu(), # type: ignore
-        )
+        await _edit_then_show_manage_menu(callback, "❌ To'lov topilmadi yoki allaqachon bajarilgan.")
         return
 
     msg = "🗑 To'lovni o'chirishni tasdiqlaysizmi?\n\n"
@@ -912,10 +883,7 @@ async def do_delete_payment_callback(callback: CallbackQuery):
         return
 
     text = "Kelajakdagi to'lovlar topilmadi." if deleted else "To'lov topilmadi yoki o'chirish mumkin emas."
-    await callback.message.edit_text(
-        text,
-        reply_markup=get_manage_menu(), # type: ignore
-    )
+    await _edit_then_show_manage_menu(callback, text)
 
 
 @router.callback_query(F.data.startswith("cancel_delete_payment_"))
@@ -936,10 +904,7 @@ async def cancel_delete_payment_callback(callback: CallbackQuery, state: FSMCont
                 reply_markup=get_manage_future_payments_list_keyboard(payments),
             )
         else:
-            await callback.message.edit_text(
-                "Kelajakdagi to'lovlar topilmadi.",
-                reply_markup=get_manage_menu(), # type: ignore
-            )
+            await _edit_then_show_manage_menu(callback, "Kelajakdagi to'lovlar topilmadi.")
         return
 
     if payments:
@@ -948,7 +913,4 @@ async def cancel_delete_payment_callback(callback: CallbackQuery, state: FSMCont
             reply_markup=get_manage_future_payments_list_keyboard(payments),
         )
     else:
-        await callback.message.edit_text(
-            "Amal bekor qilindi.",
-            reply_markup=get_main_menu(), # type: ignore
-        )
+        await _edit_then_show_main_menu(callback, "Amal bekor qilindi.")
