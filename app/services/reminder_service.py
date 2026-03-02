@@ -1,34 +1,41 @@
-from sqlalchemy.orm import Session
 from datetime import datetime, date
-from config import config
 import pytz
+
+from config import config
+from database import run_db
+
 
 class ReminderService:
     @staticmethod
-    async def check_and_send_reminders(db: Session, bot):
-        """Check and send all types of reminders"""
-        # Get all users
-        from models import User
-        users = db.query(User).all()
-        
-        for user in users:
-            # Daily reminders (1 day before)
-            await ReminderService.send_daily_reminders(db, user.telegram_id, bot)
-            
-            # Monthly reminders (last 3 days)
-            await ReminderService.send_monthly_reminders(db, user.telegram_id, bot)
-            
-            # Yearly reminders (last 7 days)
-            await ReminderService.send_yearly_reminders(db, user.telegram_id, bot)
+    async def _get_user_settings(user_id: int):
+        from services.settings_service import SettingsService
+
+        return await run_db(SettingsService.get_or_create, user_id)
 
     @staticmethod
-    async def send_daily_reminders(db: Session, user_id: int, bot):
+    async def check_and_send_reminders(bot):
+        """Check and send all types of reminders"""
+        from models import User
+
+        users = await run_db(lambda db: db.query(User).all())
+
+        for user in users:
+            await ReminderService.send_daily_reminders(user.telegram_id, bot)
+            await ReminderService.send_monthly_reminders(user.telegram_id, bot)
+            await ReminderService.send_yearly_reminders(user.telegram_id, bot)
+
+    @staticmethod
+    async def send_daily_reminders(user_id: int, bot):
         """Send reminders for payments due tomorrow"""
         from services.payment_service import PaymentService
         from keyboards import get_payment_reminder_actions_keyboard
-        
-        payments = PaymentService.get_payments_due_tomorrow(db, user_id)
-        
+
+        settings = await ReminderService._get_user_settings(user_id)
+        if not settings.daily_reminder_enabled:
+            return
+
+        payments = await run_db(PaymentService.get_payments_due_tomorrow, user_id)
+
         if payments:
             for payment in payments:
                 message = "📢 **ERTAGA TO'LOV ESLATMASI:**\n\n"
@@ -43,18 +50,22 @@ class ReminderService:
                         parse_mode="Markdown",
                         reply_markup=get_payment_reminder_actions_keyboard(payment.id),
                     )
-                    PaymentService.mark_reminder_sent(db, [payment.id])
+                    await run_db(PaymentService.mark_reminder_sent, [payment.id])
                 except Exception as e:
                     print(f"Error sending reminder to {user_id}: {e}")
 
     @staticmethod
-    async def send_monthly_reminders(db: Session, user_id: int, bot):
+    async def send_monthly_reminders(user_id: int, bot):
         """Send reminders for monthly payments in last 3 days"""
         from services.payment_service import PaymentService
         from keyboards import get_payment_reminder_actions_keyboard
-        
-        payments = PaymentService.get_monthly_payments_due_in_3_days(db, user_id)
-        
+
+        settings = await ReminderService._get_user_settings(user_id)
+        if not settings.daily_reminder_enabled:
+            return
+
+        payments = await run_db(PaymentService.get_monthly_payments_due_in_3_days, user_id)
+
         if payments:
             today = date.today()
             for payment in payments:
@@ -63,7 +74,7 @@ class ReminderService:
                 message += f"{payment.description} to'lovi {days_left} kun qoldi\n"
                 message += f"Miqdori: {payment.amount:,.0f} so'm\n"
                 message += f"To'lov sanasi: {payment.due_date.strftime('%d.%m.%Y')}"
-                
+
                 try:
                     await bot.send_message(
                         user_id,
@@ -73,19 +84,22 @@ class ReminderService:
                     )
                 except Exception as e:
                     print(f"Error sending monthly reminder to {user_id}: {e}")
-            
-            # Mark as reminder sent
+
             payment_ids = [p.id for p in payments]
-            PaymentService.mark_reminder_sent(db, payment_ids)
+            await run_db(PaymentService.mark_reminder_sent, payment_ids)
 
     @staticmethod
-    async def send_yearly_reminders(db: Session, user_id: int, bot):
+    async def send_yearly_reminders(user_id: int, bot):
         """Send reminders for yearly payments in last 7 days"""
         from services.payment_service import PaymentService
         from keyboards import get_payment_reminder_actions_keyboard
-        
-        payments = PaymentService.get_yearly_payments_due_in_week(db, user_id)
-        
+
+        settings = await ReminderService._get_user_settings(user_id)
+        if not settings.daily_reminder_enabled:
+            return
+
+        payments = await run_db(PaymentService.get_yearly_payments_due_in_week, user_id)
+
         if payments:
             today = date.today()
             for payment in payments:
@@ -94,7 +108,7 @@ class ReminderService:
                 message += f"{payment.description} to'lovi {days_left} kun qoldi\n"
                 message += f"Miqdori: {payment.amount:,.0f} so'm\n"
                 message += f"To'lov sanasi: {payment.due_date.strftime('%d.%m.%Y')}"
-                
+
                 try:
                     await bot.send_message(
                         user_id,
@@ -104,47 +118,63 @@ class ReminderService:
                     )
                 except Exception as e:
                     print(f"Error sending yearly reminder to {user_id}: {e}")
-            
-            # Mark as reminder sent
+
             payment_ids = [p.id for p in payments]
-            PaymentService.mark_reminder_sent(db, payment_ids)
+            await run_db(PaymentService.mark_reminder_sent, payment_ids)
 
     @staticmethod
-    async def send_daily_summary(db: Session, user_id: int, bot):
+    async def send_daily_summary(user_id: int, bot):
         """Send daily expense summary at end of day"""
         from services.expense_service import ExpenseService
-        
+
+        settings = await ReminderService._get_user_settings(user_id)
+        if not settings.daily_summary_enabled:
+            return
+
         today = date.today()
-        expenses = ExpenseService.get_today_expenses(db, user_id)
-        
+        expenses = await run_db(ExpenseService.get_today_expenses, user_id)
+
         if expenses:
-            total = ExpenseService.get_total_expenses(db, user_id, expenses)
-            category_totals = ExpenseService.get_expenses_by_category(db, user_id, today, today)
-            
+            total = sum(exp.amount for exp in expenses)
+            category_totals = await run_db(
+                ExpenseService.get_expenses_by_category,
+                user_id,
+                today,
+                today,
+            )
+
             message = f"📊 **KUNLIK HISOBOT - {today.strftime('%d.%m.%Y')}**\n\n"
             message += f"📈 Jami xarajat: {total:,.0f} so'm\n"
             message += f"📝 Xarajatlar soni: {len(expenses)}\n\n"
             message += "📋 **Kategoriyalar bo'yicha:**\n"
-            
+
             for category, amount in category_totals.items():
                 percentage = (amount / total * 100) if total > 0 else 0
                 message += f"• {category}: {amount:,.0f} so'm ({percentage:.1f}%)\n"
-            
-            message += f"\n⏰ Hisobot vaqti: {datetime.now(pytz.timezone(config.TIMEZONE)).strftime('%H:%M')}"
-            
+
+            timezone_name = settings.timezone or config.TIMEZONE
+            message += (
+                f"\n⏰ Hisobot vaqti: "
+                f"{datetime.now(pytz.timezone(timezone_name)).strftime('%H:%M')}"
+            )
+
             try:
                 await bot.send_message(user_id, message, parse_mode="Markdown")
             except Exception as e:
                 print(f"Error sending daily summary to {user_id}: {e}")
 
     @staticmethod
-    async def send_overdue_reminders(db: Session, user_id: int, bot):
+    async def send_overdue_reminders(user_id: int, bot):
         """Send reminders for overdue payments (due_date < today)."""
         from services.payment_service import PaymentService
         from keyboards import get_payment_reminder_actions_keyboard
 
+        settings = await ReminderService._get_user_settings(user_id)
+        if not settings.overdue_reminder_enabled:
+            return
+
         now_utc = datetime.utcnow()
-        payments = PaymentService.get_overdue_payments(db, user_id)
+        payments = await run_db(PaymentService.get_overdue_payments, user_id)
         if not payments:
             return
 
@@ -182,4 +212,4 @@ class ReminderService:
             except Exception as e:
                 print(f"Error sending overdue reminder to {user_id}: {e}")
 
-        PaymentService.mark_overdue_sent(db, [p.id for p in to_send])
+        await run_db(PaymentService.mark_overdue_sent, [p.id for p in to_send])

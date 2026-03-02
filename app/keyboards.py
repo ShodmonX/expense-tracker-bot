@@ -1,26 +1,26 @@
-from aiogram.types import InlineKeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 def get_main_menu():
-    builder = InlineKeyboardBuilder()
+    builder = ReplyKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="💰 Xarajat qo'shish", callback_data="add_expense"),
-        InlineKeyboardButton(text="💵 Kirim qo'shish", callback_data="add_income")
+        KeyboardButton(text="💰 Xarajat qo'shish"),
+        KeyboardButton(text="💵 Kirim qo'shish")
     )
     builder.row(
-        InlineKeyboardButton(text="💳 To'lov qo'shish", callback_data="add_payment"),
-        InlineKeyboardButton(text="📊 Hisobotlar", callback_data="reports_menu")
+        KeyboardButton(text="💳 To'lov qo'shish"),
+        KeyboardButton(text="📊 Hisobotlar")
     )
     builder.row(
-        InlineKeyboardButton(text="💰 Balans", callback_data="balance_summary"),
-        InlineKeyboardButton(text="🔔 Kelgusi to'lovlar", callback_data="upcoming_payments")
+        KeyboardButton(text="💰 Balans"),
+        KeyboardButton(text="🔔 Kelgusi to'lovlar")
     )
     builder.row(
-        InlineKeyboardButton(text="🧾 Boshqarish", callback_data="manage_menu"),
-        InlineKeyboardButton(text="⚙️ Sozlamalar", callback_data="settings"),
-        InlineKeyboardButton(text="ℹ️ Yordam", callback_data="help")
+        KeyboardButton(text="🧾 Boshqarish"),
+        KeyboardButton(text="⚙️ Sozlamalar"),
+        KeyboardButton(text="ℹ️ Yordam")
     )
-    return builder.as_markup()
+    return builder.as_markup(resize_keyboard=True)
 
 def get_income_categories_keyboard():
     builder = InlineKeyboardBuilder()
@@ -127,34 +127,144 @@ def get_upcoming_payment_detail_keyboard(payment_id: int):
     return builder.as_markup()
 
 def get_reports_menu():
+    builder = ReplyKeyboardBuilder()
+    builder.row(
+        KeyboardButton(text="📊 Bugun"),
+        KeyboardButton(text="📈 Kecha")
+    )
+    builder.row(
+        KeyboardButton(text="📅 Haftalik"),
+        KeyboardButton(text="📆 Oylik")
+    )
+    builder.row(
+        KeyboardButton(text="🎯 Yillik"),
+        KeyboardButton(text="📊 Ixtiyoriy")
+    )
+    builder.row(
+        KeyboardButton(text="🔙 Ortga")
+    )
+    return builder.as_markup(resize_keyboard=True)
+
+def get_manage_menu(is_admin: bool = False):
+    builder = ReplyKeyboardBuilder()
+    builder.row(
+        KeyboardButton(text="🧾 Oxirgi xarajatlar")
+    )
+    builder.row(
+        KeyboardButton(text="🗓 Kelajakdagi to'lovlar")
+    )
+    if is_admin:
+        builder.row(
+            KeyboardButton(text="🗄 DB backup")
+        )
+    builder.row(
+        KeyboardButton(text="🔙 Ortga")
+    )
+    return builder.as_markup(resize_keyboard=True)
+
+def get_backup_menu_keyboard():
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="📊 Bugun", callback_data="today_report"),
-        InlineKeyboardButton(text="📈 Kecha", callback_data="yesterday_report"),
+        InlineKeyboardButton(text="💾 Manual backup", callback_data="adb:mk")
     )
     builder.row(
-        InlineKeyboardButton(text="📅 Haftalik", callback_data="weekly_report"),
-        InlineKeyboardButton(text="📆 Oylik", callback_data="monthly_report"),
+        InlineKeyboardButton(text="📂 Ro'yxat", callback_data="adb:ls:kind"),
+        InlineKeyboardButton(text="♻️ Restore", callback_data="adb:rs:kind"),
     )
     builder.row(
-        InlineKeyboardButton(text="🎯 Yillik", callback_data="yearly_report"),
-        InlineKeyboardButton(text="📊 Ixtiyoriy", callback_data="report_custom"),
+        InlineKeyboardButton(text="🗑 O'chirish", callback_data="adb:rm:kind"),
+        InlineKeyboardButton(text="🧹 Auto cleanup", callback_data="adb:cln:ask"),
     )
     builder.row(
-        InlineKeyboardButton(text="🔙 Ortga", callback_data="main_menu"),
+        InlineKeyboardButton(text="ℹ️ Auto status", callback_data="adb:st")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔙 Ortga", callback_data="adb:exit")
     )
     return builder.as_markup()
 
-def get_manage_menu():
+def get_backup_kind_keyboard(section: str):
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="🧾 Oxirgi xarajatlar", callback_data="manage_last_expenses"),
+        InlineKeyboardButton(text="📁 Barchasi", callback_data=f"adb:k:{section}:a:0")
     )
     builder.row(
-        InlineKeyboardButton(text="🗓 Kelajakdagi to'lovlar", callback_data="manage_future_payments"),
+        InlineKeyboardButton(text="🤖 Auto", callback_data=f"adb:k:{section}:u:0"),
+        InlineKeyboardButton(text="👤 Manual", callback_data=f"adb:k:{section}:m:0"),
     )
     builder.row(
-        InlineKeyboardButton(text="🔙 Ortga", callback_data="main_menu"),
+        InlineKeyboardButton(text="🛟 Pre-restore", callback_data=f"adb:k:{section}:p:0")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔙 Menyu", callback_data="adb:menu")
+    )
+    return builder.as_markup()
+
+def get_backup_list_keyboard(items: list, section: str, kind_code: str, page: int, total_pages: int):
+    builder = InlineKeyboardBuilder()
+
+    if section in {"r", "d"}:
+        action_callback = "adb:rc:" if section == "r" else "adb:dc:"
+        action_prefix = "♻️" if section == "r" else "🗑"
+        for item in items:
+            builder.row(
+                InlineKeyboardButton(
+                    text=f"{action_prefix} {item.filename}",
+                    callback_data=f"{action_callback}{item.filename}",
+                )
+            )
+
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="⬅️ Oldingi",
+                callback_data=f"adb:p:{section}:{kind_code}:{page - 1}",
+            )
+        )
+    if page + 1 < total_pages:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="Keyingi ➡️",
+                callback_data=f"adb:p:{section}:{kind_code}:{page + 1}",
+            )
+        )
+    if nav_buttons:
+        builder.row(*nav_buttons)
+
+    section_menu_map = {
+        "l": "adb:ls:kind",
+        "r": "adb:rs:kind",
+        "d": "adb:rm:kind",
+    }
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🔎 Turini o'zgartirish",
+            callback_data=section_menu_map.get(section, "adb:menu"),
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔙 Menyu", callback_data="adb:menu")
+    )
+    return builder.as_markup()
+
+def get_backup_confirm_keyboard(action: str, filename: str = ""):
+    builder = InlineKeyboardBuilder()
+
+    if action == "restore":
+        confirm_data = f"adb:r:{filename}"
+        confirm_label = "♻️ Restore qilish"
+    elif action == "delete":
+        confirm_data = f"adb:d:{filename}"
+        confirm_label = "🗑 O'chirish"
+    else:
+        confirm_data = "adb:cln:run"
+        confirm_label = "🧹 Tozalash"
+
+    builder.row(
+        InlineKeyboardButton(text=confirm_label, callback_data=confirm_data),
+        InlineKeyboardButton(text="❌ Bekor", callback_data="adb:menu"),
     )
     return builder.as_markup()
 
@@ -417,15 +527,15 @@ def get_day_of_month_keyboard():
 def get_report_period_keyboard():
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="📅 Bugun", callback_data="report_today"),
-        InlineKeyboardButton(text="📆 Kecha", callback_data="report_yesterday")
+        InlineKeyboardButton(text="📅 Bugun", callback_data="today_report"),
+        InlineKeyboardButton(text="📆 Kecha", callback_data="yesterday_report")
     )
     builder.row(
-        InlineKeyboardButton(text="🗓 Hafta", callback_data="report_week"),
-        InlineKeyboardButton(text="🎯 Oy", callback_data="report_month")
+        InlineKeyboardButton(text="🗓 Hafta", callback_data="weekly_report"),
+        InlineKeyboardButton(text="🎯 Oy", callback_data="monthly_report")
     )
     builder.row(
-        InlineKeyboardButton(text="📈 Yil", callback_data="report_year"),
+        InlineKeyboardButton(text="📈 Yil", callback_data="yearly_report"),
         InlineKeyboardButton(text="📊 Ixtiyoriy", callback_data="report_custom")
     )
     builder.row(
@@ -441,17 +551,93 @@ def get_confirmation_keyboard():
     )
     return builder.as_markup()
 
-def get_settings_keyboard():
+def get_settings_keyboard(
+    report_format: str,
+    daily_reminder_enabled: bool,
+    overdue_reminder_enabled: bool,
+    daily_summary_enabled: bool,
+):
+    normalized_format = "PDF" if (report_format or "").lower() == "pdf" else "XLSX"
+    daily_status = "✅" if daily_reminder_enabled else "❌"
+    overdue_status = "✅" if overdue_reminder_enabled else "❌"
+    summary_status = "✅" if daily_summary_enabled else "❌"
+
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="🕐 Vaqt zonasini o'zgartirish", callback_data="change_timezone"),
-        InlineKeyboardButton(text="📊 Kategoriyalarni boshqarish", callback_data="manage_categories")
+        InlineKeyboardButton(text="🌐 Vaqt zonasi", callback_data="settings:timezone"),
     )
     builder.row(
-        InlineKeyboardButton(text="🔔 Eslatmalarni sozlash", callback_data="notification_settings"),
-        InlineKeyboardButton(text="📁 Hisobot formatini tanlash", callback_data="report_format")
+        InlineKeyboardButton(
+            text=f"📁 Hisobot formati: {normalized_format}",
+            callback_data="settings:format",
+        )
     )
-    builder.row(InlineKeyboardButton(text="🔙 Ortga", callback_data="main_menu"))
+    builder.row(
+        InlineKeyboardButton(
+            text=f"🔔 Kunlik eslatma: {daily_status}",
+            callback_data="settings:toggle:daily",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"🚨 Overdue eslatma: {overdue_status}",
+            callback_data="settings:toggle:overdue",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"📊 Kunlik hisobot: {summary_status}",
+            callback_data="settings:toggle:summary",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data="settings:menu"),
+        InlineKeyboardButton(text="🔙 Ortga", callback_data="settings:close"),
+    )
+    return builder.as_markup()
+
+
+def get_report_format_keyboard(current_format: str):
+    normalized = (current_format or "").strip().lower()
+    xlsx_mark = "✅ " if normalized != "pdf" else ""
+    pdf_mark = "✅ " if normalized == "pdf" else ""
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text=f"{xlsx_mark}XLSX",
+            callback_data="settings:fmt:set:xlsx",
+        ),
+        InlineKeyboardButton(
+            text=f"{pdf_mark}PDF",
+            callback_data="settings:fmt:set:pdf",
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔙 Sozlamalar", callback_data="settings:menu"),
+    )
+    return builder.as_markup()
+
+
+def get_timezone_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🇺🇿 Asia/Tashkent", callback_data="settings:tz:set:tashkent"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🇹🇷 Europe/Istanbul", callback_data="settings:tz:set:istanbul"),
+        InlineKeyboardButton(text="🇦🇪 Asia/Dubai", callback_data="settings:tz:set:dubai"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🇪🇺 Europe/Moscow", callback_data="settings:tz:set:moscow"),
+        InlineKeyboardButton(text="🌍 UTC", callback_data="settings:tz:set:utc"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="✍️ Qo'lda kiritish", callback_data="settings:tz:custom"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔙 Sozlamalar", callback_data="settings:menu"),
+    )
     return builder.as_markup()
 
 def get_cancel_keyboard():
@@ -497,4 +683,15 @@ def get_skip_payment_occurrences_keyboard():
         InlineKeyboardButton(text="⏭ O'tkazib yuborish", callback_data="skip_payment_occurrences"),
     )
     builder.row(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel"))
+    return builder.as_markup()
+
+
+def get_bank_description_choice_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="✅ Shu izohni qoldirish", callback_data="bank_desc_keep"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel"),
+    )
     return builder.as_markup()

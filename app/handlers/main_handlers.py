@@ -2,32 +2,39 @@ from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from database import get_db
+from config import config
+from database import run_db
 from keyboards import (
     get_main_menu,
     get_manage_menu,
     get_reports_menu,
-    get_settings_keyboard,
 )
 
 router = Router()
 
 
 @router.message(lambda message: message.text and message.text.startswith('/'))
-async def command_handler(message: Message):
+async def command_handler(message: Message, state: FSMContext):
+    if message.from_user is None:
+        await message.answer("❌ Foydalanuvchi ma'lumotlari topilmadi.")
+        return
     if message.text == '/start':
-        db = next(get_db())
+        await state.clear()
         from models import User
 
-        user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
+        user = await run_db(
+            lambda db: db.query(User).filter(User.telegram_id == message.from_user.id).first()
+        )
         if not user:
-            user = User(
-                telegram_id=message.from_user.id,
-                username=message.from_user.username,
-                full_name=message.from_user.full_name,
+            await run_db(
+                lambda db: _create_user(
+                    db,
+                    User,
+                    message.from_user.id,
+                    message.from_user.username,
+                    message.from_user.full_name,
+                )
             )
-            db.add(user)
-            db.commit()
 
         welcome_message = (
             "👋 Assalomu alaykum! Xarajatlar va to'lovlarni boshqarish botiga xush kelibsiz!\n\n"
@@ -43,6 +50,7 @@ async def command_handler(message: Message):
         return
 
     if message.text == '/menu':
+        await state.clear()
         await message.answer("Asosiy menyu:", reply_markup=get_main_menu())
         return
 
@@ -67,6 +75,12 @@ async def command_handler(message: Message):
         )
         return
 
+    if message.text == '/backup':
+        from handlers.db_backup_handlers import show_backup_menu
+
+        await show_backup_menu(message)
+        return
+
     if message.text == '/help':
         help_text = (
             "🆘 **Yordam**\n\n"
@@ -88,62 +102,77 @@ async def command_handler(message: Message):
         await message.answer(help_text, reply_markup=get_main_menu())
 
 
-@router.callback_query(F.data == "manage_menu")
-async def manage_menu_callback(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text(
+@router.message(F.text == "🧾 Boshqarish")
+async def manage_menu_handler(message: Message):
+    if message.from_user is None:
+        await message.answer("❌ Foydalanuvchi ma'lumotlari topilmadi.")
+        return
+    is_admin = bool(config.ADMIN_ID) and message.from_user.id == config.ADMIN_ID
+    await message.answer(
         "Boshqarish:",
-        reply_markup=get_manage_menu(),
+        reply_markup=get_manage_menu(is_admin=is_admin),
     )
 
 
-@router.callback_query(F.data == "reports_menu")
-async def reports_menu_callback(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text(
+@router.message(F.text == "📊 Hisobotlar")
+async def reports_menu_handler(message: Message):
+    await message.answer(
         "Hisobotlar:",
         reply_markup=get_reports_menu(),
     )
 
 
-@router.callback_query(F.data == "main_menu")
-async def main_menu_callback(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text(
+@router.message(F.text == "🔙 Ortga")
+async def main_menu_handler(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
         "Asosiy menyu:",
         reply_markup=get_main_menu(),
     )
 
 
-@router.callback_query(F.data == "cancel")
-async def cancel_callback(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
+@router.message(F.text == "❌ Bekor qilish")
+async def cancel_handler(message: Message, state: FSMContext):
     await state.clear()
-    await callback.message.edit_text(
+    await message.answer(
         "Amal bekor qilindi.",
         reply_markup=get_main_menu(),
     )
 
 
-@router.callback_query(F.data == "settings")
-async def settings_callback(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text(
-        "Sozlamalar:",
-        reply_markup=get_settings_keyboard(),
-    )
-
-
-@router.callback_query(F.data == "help")
-async def help_callback(callback: CallbackQuery):
-    await callback.answer()
+@router.message(F.text == "ℹ️ Yordam")
+async def help_handler(message: Message):
     help_text = (
         "🆘 **Yordam**\n\n"
         "**Qo'llanma:**\n"
-        "1. Xarajat qo'shish uchun 'Xarajat qo'shish' tugmasini bosing\n"
-        "2. To'lov qo'shish uchun 'To'lov qo'shish' tugmasini bosing\n"
+        "1. Xarajat qo'shish uchun '💰 Xarajat qo'shish' tugmasini bosing\n"
+        "2. To'lov qo'shish uchun '💳 To'lov qo'shish' tugmasini bosing\n"
         "3. Hisobot olish uchun kerakli davrni tanlang\n"
         "4. Excel fayl avtomatik yuklanadi\n\n"
         "**Savollar bo'lsa:** @your_username"
     )
-    await callback.message.edit_text(help_text, reply_markup=get_main_menu())
+    await message.answer(help_text, reply_markup=get_main_menu())
+
+
+# Keep callback handlers for inline keyboards that still need them
+@router.callback_query(F.data == "cancel")
+async def cancel_callback(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    if callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
+    await state.clear()
+    await callback.message.answer(
+        "Amal bekor qilindi.",
+        reply_markup=get_main_menu(),
+    )
+
+
+def _create_user(db, user_model, telegram_id: int, username: str | None, full_name: str | None):
+    user = user_model(
+        telegram_id=telegram_id,
+        username=username,
+        full_name=full_name,
+    )
+    db.add(user)
+    db.commit()

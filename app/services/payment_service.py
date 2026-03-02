@@ -177,7 +177,7 @@ class PaymentService:
                 except Exception:
                     payment.occurrences_left = payment.occurrences_left
 
-                if payment.occurrences_left is not None and payment.occurrences_left <= 0:
+                if payment.occurrences_left is not None and payment.occurrences_left <= 0: # pyright: ignore[reportOptionalOperand]
                     db.delete(payment)
                     db.commit()
                     return payment

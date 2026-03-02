@@ -25,6 +25,10 @@ class ReportStates(StatesGroup):
 class SettingsStates(StatesGroup):
     waiting_for_timezone = State()
 
+class BankMessageStates(StatesGroup):
+    waiting_for_category = State()
+    waiting_for_description_choice = State()
+
 class IncomeStates(StatesGroup):
     waiting_for_amount = State()
     waiting_for_category = State()

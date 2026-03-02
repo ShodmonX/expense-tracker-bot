@@ -63,7 +63,7 @@ class ExpenseService:
         ).all()
 
     @staticmethod
-    def get_monthly_expenses(db: Session, user_id: int, year: int = None, month: int = None) -> List[Expense]:
+    def get_monthly_expenses(db: Session, user_id: int, year: int| None = None, month: int | None = None) -> List[Expense]:
         today = date.today()
         year = year or today.year
         month = month or today.month
@@ -76,7 +76,7 @@ class ExpenseService:
         ).all()
 
     @staticmethod
-    def get_yearly_expenses(db: Session, user_id: int, year: int = None) -> List[Expense]:
+    def get_yearly_expenses(db: Session, user_id: int, year: int | None = None) -> List[Expense]:
         today = date.today()
         year = year or today.year
         

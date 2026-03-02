@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import InaccessibleMessage, Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from datetime import date, timedelta, datetime
 import calendar
@@ -11,12 +11,26 @@ from services.payment_service import PaymentService
 from models import PaymentFrequency, Payment
 from config import config
 from utils.helpers import parse_amount, parse_date
-from database import get_db
+from database import run_db
 
 router = Router()
 
+@router.message(F.text == "💳 To'lov qo'shish")
+async def add_payment_message(message: Message, state: FSMContext):
+    if message.from_user is None:
+        await message.answer("❌ Foydalanuvchi ma'lumotlari topilmadi.")
+        return
+    await state.update_data(user_id=message.from_user.id)
+    await message.answer(
+        "To'lov chastotasini tanlang:",
+        reply_markup=get_payment_frequency_keyboard()
+    )
+
 @router.callback_query(F.data == "add_payment")
 async def add_payment(callback: CallbackQuery, state: FSMContext):
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     await state.update_data(user_id=callback.from_user.id)
     await callback.message.edit_text(
@@ -26,7 +40,13 @@ async def add_payment(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("payment_"))
 async def process_payment_frequency(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: to'lov chastotasi tanlanmadi.", show_alert=True)
+        return
     await callback.answer()
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     frequency_map = {
         "payment_weekly": PaymentFrequency.WEEKLY,
         "payment_biweekly": PaymentFrequency.BIWEEKLY,
@@ -72,10 +92,17 @@ async def process_payment_frequency(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(PaymentStates.waiting_for_weekday, F.data.startswith("weekday_"))
 async def process_payment_weekday(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: haftaning kunini tanlanmadi.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         weekday = int(callback.data.replace("weekday_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: haftaning kunini noto'g'ri kiritdingiz.", show_alert=True)
         return
 
     today = date.today()
@@ -95,10 +122,17 @@ async def process_payment_weekday(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(PaymentStates.waiting_for_day_of_month, F.data.startswith("monthday_"))
 async def process_payment_day_of_month(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: oyning sanasini tanlanmadi.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         day_of_month = int(callback.data.replace("monthday_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: oyning sanasini noto'g'ri kiritdingiz.", show_alert=True)
         return
 
     today = date.today()
@@ -126,6 +160,9 @@ async def process_payment_day_of_month(callback: CallbackQuery, state: FSMContex
 
 @router.callback_query(PaymentStates.waiting_for_occurrences, F.data == "skip_payment_occurrences")
 async def skip_payment_occurrences(callback: CallbackQuery, state: FSMContext):
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     await state.update_data(occurrences_left=None)
     await callback.message.edit_text(
@@ -164,6 +201,12 @@ async def process_payment_occurrences(message: Message, state: FSMContext):
 
 @router.message(PaymentStates.waiting_for_amount)
 async def process_payment_amount(message: Message, state: FSMContext):
+    if message.text is None:
+        await message.answer(
+            "❌ Iltimos, to'lov miqdorini kiriting (so'm):\n\nMasalan: 500000 yoki 500 000",
+            reply_markup=get_cancel_keyboard()
+        )
+        return
     amount = parse_amount(message.text)
     
     if amount is None or amount <= 0:
@@ -183,6 +226,12 @@ async def process_payment_amount(message: Message, state: FSMContext):
 
 @router.callback_query(PaymentStates.waiting_for_category, F.data.startswith("cat_"))
 async def process_payment_category(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: kategoriya tanlanmadi.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     category = callback.data.replace("cat_", "")
     await state.update_data(category=category)
@@ -214,6 +263,9 @@ async def process_payment_description(message: Message, state: FSMContext):
 
 @router.callback_query(PaymentStates.waiting_for_description, F.data == "skip_payment_description")
 async def skip_payment_description(callback: CallbackQuery, state: FSMContext):
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     data = await state.get_data()
     await state.update_data(description=data.get("category", ""))
@@ -232,6 +284,13 @@ async def skip_payment_description(callback: CallbackQuery, state: FSMContext):
 
 @router.message(PaymentStates.waiting_for_date)
 async def process_payment_date(message: Message, state: FSMContext):
+    if message.text is None:
+        await message.answer(
+            "❌ Iltimos, to'lov sanasini kiriting (DD.MM.YYYY):\n\nMasalan: 01.02.2026\n"
+            "Yoki: bugun, ertaga, kecha, +7 (7 kun keyin)",
+            reply_markup=get_cancel_keyboard()
+        )
+        return
     due_date = parse_date(message.text)
     
     if due_date is None:
@@ -249,10 +308,12 @@ async def process_payment_date(message: Message, state: FSMContext):
 
 async def save_payment(message: Message, state: FSMContext):
     data = await state.get_data()
+    if message.from_user is None:
+        await message.answer("❌ Foydalanuvchi ma'lumotlari noto'g'ri.")
+        return
     
-    db = next(get_db())
-    payment = PaymentService.add_payment(
-        db=db,
+    await run_db(
+        PaymentService.add_payment,
         user_id=data.get('user_id') or message.from_user.id,
         amount=data['amount'],
         category=data.get('category') or "To'lov",
@@ -262,7 +323,7 @@ async def save_payment(message: Message, state: FSMContext):
         weekday=data.get('weekday'),
         day_of_month=data.get('day_of_month'),
         occurrences_left=data.get('occurrences_left'),
-        is_paid=False
+        is_paid=False,
     )
     
     # Format message
@@ -287,9 +348,11 @@ async def save_payment(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "monthly_payment_summary")
 async def show_monthly_payment_summary(callback: CallbackQuery):
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
-    db = next(get_db())
-    summary = PaymentService.get_monthly_payment_summary(db, callback.from_user.id)
+    summary = await run_db(PaymentService.get_monthly_payment_summary, callback.from_user.id)
     
     # Format the summary message
     message_text = f"💵 **{summary['month_name']} oylik to'lovlar rejasi**\n\n"
@@ -316,16 +379,37 @@ async def show_monthly_payment_summary(callback: CallbackQuery):
     )
 
 
+@router.message(F.text == "🔔 Kelgusi to'lovlar")
+async def show_upcoming_payments_message(message: Message):
+    if message.from_user is None:
+        await message.answer("❌ Foydalanuvchi ma'lumotlari noto'g'ri.")
+        return
+    payments = await run_db(PaymentService.get_upcoming_payments, message.from_user.id, days_ahead=30)
+    
+    if not payments:
+        await message.answer(
+            "🔔 Keyingi 30 kun ichida to'lovlar topilmadi.",
+            reply_markup=get_main_menu(), # type: ignore
+        )
+        return
+
+    await message.answer(
+        "🔔 Kelgusi to'lovlar (30 kun):\n\nTo'lovni ko'rish uchun tanlang:",
+        reply_markup=get_upcoming_payments_keyboard(payments),
+    )
+
 @router.callback_query(F.data == "upcoming_payments")
 async def show_upcoming_payments(callback: CallbackQuery):
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
-    db = next(get_db())
-    payments = PaymentService.get_upcoming_payments(db, callback.from_user.id, days_ahead=30)
+    payments = await run_db(PaymentService.get_upcoming_payments, callback.from_user.id, days_ahead=30)
     
     if not payments:
         await callback.message.edit_text(
             "🔔 Keyingi 30 kun ichida to'lovlar topilmadi.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore # type:ignore
         )
         return
 
@@ -337,23 +421,25 @@ async def show_upcoming_payments(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("view_upcoming_payment_"))
 async def view_upcoming_payment(callback: CallbackQuery):
+    if callback.data is None:
+        await callback.answer("❌ Xato: to'lov tanlanmadi.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("view_upcoming_payment_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
         return
 
-    db = next(get_db())
-    payment = db.query(Payment).filter(
-        Payment.id == payment_id,
-        Payment.user_id == callback.from_user.id,
-        Payment.is_paid == False,
-    ).first()
+    payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
 
     if not payment:
         await callback.message.edit_text(
             "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore # type: ignore
         )
         return
 
@@ -379,16 +465,38 @@ async def view_upcoming_payment(callback: CallbackQuery):
         reply_markup=get_upcoming_payment_detail_keyboard(payment.id),
     )
 
+@router.message(F.text == "🗓 Kelajakdagi to'lovlar")
+async def manage_future_payments_message(message: Message):
+    if message.from_user is None:
+        await message.answer("❌ Foydalanuvchi ma'lumotlari noto'g'ri.")
+        return
+    payments = await run_db(PaymentService.get_future_payments, message.from_user.id, limit=30)
+
+    if not payments:
+        await message.answer(
+            "Kelajakdagi to'lovlar topilmadi.",
+            reply_markup=get_manage_menu(), # type: ignore
+        )
+        return
+
+    await message.answer(
+        "Kelajakdagi to'lovlar:\n\nTo'lovni ko'rish uchun tanlang:",
+        reply_markup=get_manage_future_payments_list_keyboard(payments),
+    )
+
 @router.callback_query(F.data == "manage_future_payments")
 async def manage_future_payments(callback: CallbackQuery):
+    
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
-    db = next(get_db())
-    payments = PaymentService.get_future_payments(db, callback.from_user.id, limit=30)
+    payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
 
     if not payments:
         await callback.message.edit_text(
             "Kelajakdagi to'lovlar topilmadi.",
-            reply_markup=get_manage_menu(),
+            reply_markup=get_manage_menu(), # type: ignore # type: ignore
         )
         return
 
@@ -400,23 +508,25 @@ async def manage_future_payments(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("view_manage_future_payment_"))
 async def view_manage_future_payment(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("view_manage_future_payment_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
         return
 
-    db = next(get_db())
-    payment = db.query(Payment).filter(
-        Payment.id == payment_id,
-        Payment.user_id == callback.from_user.id,
-        Payment.is_paid == False,
-    ).first()
+    payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
 
     if not payment:
         await callback.message.edit_text(
             "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_manage_menu(),
+            reply_markup=get_manage_menu(), # type: ignore # type: ignore
         )
         return
 
@@ -456,24 +566,34 @@ def _local_today() -> date:
     return datetime.now(pytz.timezone(config.TIMEZONE)).date()
 
 
+def _get_active_payment(db, payment_id: int, user_id: int):
+    return db.query(Payment).filter(
+        Payment.id == payment_id,
+        Payment.user_id == user_id,
+        Payment.is_paid == False,
+    ).first()
+
+
 @router.callback_query(F.data.startswith("confirm_pay_payment_"))
 async def confirm_pay_payment_callback(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("confirm_pay_payment_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
         return
 
-    db = next(get_db())
-    payment = db.query(Payment).filter(
-        Payment.id == payment_id,
-        Payment.user_id == callback.from_user.id,
-        Payment.is_paid == False,
-    ).first()
+    payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
     if not payment:
         await callback.message.edit_text(
             "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore # type: ignore
         )
         return
 
@@ -499,22 +619,24 @@ async def confirm_pay_payment_callback(callback: CallbackQuery, state: FSMContex
 
 @router.callback_query(F.data.startswith("ask_pay_amount_"))
 async def ask_pay_amount_callback(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("ask_pay_amount_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
         return
 
-    db = next(get_db())
-    payment = db.query(Payment).filter(
-        Payment.id == payment_id,
-        Payment.user_id == callback.from_user.id,
-        Payment.is_paid == False,
-    ).first()
+    payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
     if not payment:
         await callback.message.edit_text(
             "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore # type: ignore
         )
         return
 
@@ -541,6 +663,9 @@ async def ask_pay_amount_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.message(PaymentStates.waiting_for_pay_amount)
 async def process_custom_pay_amount(message: Message, state: FSMContext):
+    if message.text is None:
+        await message.answer("❌ Xato: matn kiriting.")
+        return
     amount = parse_amount(message.text)
     if amount is None or amount <= 0:
         await message.answer(
@@ -567,10 +692,17 @@ async def process_custom_pay_amount(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("do_pay_payment_custom_"))
 async def do_pay_payment_custom_callback(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("do_pay_payment_custom_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
         return
 
     data = await state.get_data()
@@ -579,14 +711,13 @@ async def do_pay_payment_custom_callback(callback: CallbackQuery, state: FSMCont
     if paid_amount is None:
         await callback.message.edit_text(
             "❌ Summa topilmadi. Qaytadan urinib ko'ring.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )
         await state.clear()
         return
 
-    db = next(get_db())
-    paid = PaymentService.pay_payment_and_record_expense(
-        db,
+    paid = await run_db(
+        PaymentService.pay_payment_and_record_expense,
         payment_id,
         callback.from_user.id,
         paid_amount=float(paid_amount),
@@ -595,7 +726,7 @@ async def do_pay_payment_custom_callback(callback: CallbackQuery, state: FSMCont
     await state.clear()
 
     if origin_manage:
-        payments = PaymentService.get_future_payments(db, callback.from_user.id, limit=30)
+        payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
         if payments:
             await callback.message.edit_text(
                 "Kelajakdagi to'lovlar:\n\nTo'lovni ko'rish uchun tanlang:",
@@ -604,44 +735,50 @@ async def do_pay_payment_custom_callback(callback: CallbackQuery, state: FSMCont
         else:
             await callback.message.edit_text(
                 "Kelajakdagi to'lovlar topilmadi.",
-                reply_markup=get_manage_menu(),
+                reply_markup=get_manage_menu(), # type: ignore
             )
         return
 
     if paid:
         await callback.message.edit_text(
             "✅ To'lov belgilandi va xarajatlar ro'yxatiga qo'shildi.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )
     else:
         await callback.message.edit_text(
             "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )
 
 
 @router.callback_query(F.data.startswith("do_pay_payment_"))
 async def do_pay_payment_callback(callback: CallbackQuery, state: FSMContext):
+    if callback.data is None:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("do_pay_payment_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
         return
 
     data = await state.get_data()
     origin_manage = bool(data.get("pay_origin_manage", False))
 
-    db = next(get_db())
-    paid = PaymentService.pay_payment_and_record_expense(db, payment_id, callback.from_user.id)
+    paid = await run_db(PaymentService.pay_payment_and_record_expense, payment_id, callback.from_user.id)
 
     await state.clear()
 
-    payments = PaymentService.get_future_payments(db, callback.from_user.id, limit=30)
+    payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
     if origin_manage or _is_manage_future_payments_message(callback.message.text if callback.message else None):
         if not payments:
             await callback.message.edit_text(
                 "Kelajakdagi to'lovlar topilmadi.",
-                reply_markup=get_manage_menu(),
+                reply_markup=get_manage_menu(), # type: ignore
             )
         else:
             await callback.message.edit_text(
@@ -653,20 +790,22 @@ async def do_pay_payment_callback(callback: CallbackQuery, state: FSMContext):
     if paid:
         await callback.message.edit_text(
             "✅ To'lov belgilandi va xarajatlar ro'yxatiga qo'shildi.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )
     else:
         await callback.message.edit_text(
             "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )
 
 
 @router.callback_query(F.data.startswith("cancel_pay_payment_"))
 async def cancel_pay_payment_callback(callback: CallbackQuery):
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
-    db = next(get_db())
-    payments = PaymentService.get_future_payments(db, callback.from_user.id, limit=30)
+    payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
     if payments:
         await callback.message.edit_text(
             "Kelajakdagi to'lovlar:\n\nTo'lovni ko'rish uchun tanlang:",
@@ -675,22 +814,27 @@ async def cancel_pay_payment_callback(callback: CallbackQuery):
     else:
         await callback.message.edit_text(
             "Amal bekor qilindi.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )
 
 
 @router.callback_query(F.data.startswith("skip_payment_"))
 async def skip_payment_callback(callback: CallbackQuery):
+    if callback.data is None:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("skip_payment_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True) 
         return
 
-    db = next(get_db())
-    skipped = PaymentService.skip_payment_occurrence(db, payment_id, callback.from_user.id)
-
-    payments = PaymentService.get_future_payments(db, callback.from_user.id, limit=30)
+    skipped = await run_db(PaymentService.skip_payment_occurrence, payment_id, callback.from_user.id)
+    payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
     if payments and callback.message and callback.message.text and "Kelajakdagi to'lovlar" in callback.message.text:
         await callback.message.edit_text(
             "Kelajakdagi to'lovlar (o'chirish uchun tanlang):",
@@ -701,32 +845,34 @@ async def skip_payment_callback(callback: CallbackQuery):
     if skipped:
         await callback.message.edit_text(
             "⏭ To'lov shu davr uchun o'tkazib yuborildi.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )
     else:
         await callback.message.edit_text(
             "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )
 
 @router.callback_query(F.data.startswith("confirm_delete_payment_"))
 async def confirm_delete_payment_callback(callback: CallbackQuery):
+    if callback.data is None:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("confirm_delete_payment_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
         return
 
-    db = next(get_db())
-    payment = db.query(Payment).filter(
-        Payment.id == payment_id,
-        Payment.user_id == callback.from_user.id,
-        Payment.is_paid == False,
-    ).first()
+    payment = await run_db(_get_active_payment, payment_id, callback.from_user.id)
     if not payment:
         await callback.message.edit_text(
             "❌ To'lov topilmadi yoki allaqachon bajarilgan.",
-            reply_markup=get_manage_menu(),
+            reply_markup=get_manage_menu(), # type: ignore
         )
         return
 
@@ -743,16 +889,21 @@ async def confirm_delete_payment_callback(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("do_delete_payment_"))
 async def do_delete_payment_callback(callback: CallbackQuery):
+    if callback.data is None:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
+        return
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     try:
         payment_id = int(callback.data.replace("do_delete_payment_", ""))
     except ValueError:
+        await callback.answer("❌ Xato: noto'g'ri to'lov identifikatori.", show_alert=True)
         return
 
-    db = next(get_db())
-    deleted = PaymentService.delete_payment(db, callback.from_user.id, payment_id)
-
-    payments = PaymentService.get_future_payments(db, callback.from_user.id, limit=30)
+    deleted = await run_db(PaymentService.delete_payment, callback.from_user.id, payment_id)
+    payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
     if payments:
         await callback.message.edit_text(
             "Kelajakdagi to'lovlar:\n\nTo'lovni ko'rish uchun tanlang:",
@@ -763,19 +914,21 @@ async def do_delete_payment_callback(callback: CallbackQuery):
     text = "Kelajakdagi to'lovlar topilmadi." if deleted else "To'lov topilmadi yoki o'chirish mumkin emas."
     await callback.message.edit_text(
         text,
-        reply_markup=get_manage_menu(),
+        reply_markup=get_manage_menu(), # type: ignore
     )
 
 
 @router.callback_query(F.data.startswith("cancel_delete_payment_"))
 async def cancel_delete_payment_callback(callback: CallbackQuery, state: FSMContext):
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.answer()
     data = await state.get_data()
     origin_manage = bool(data.get("pay_origin_manage", False))
     await state.clear()
 
-    db = next(get_db())
-    payments = PaymentService.get_future_payments(db, callback.from_user.id, limit=30)
+    payments = await run_db(PaymentService.get_future_payments, callback.from_user.id, limit=30)
     if origin_manage:
         if payments:
             await callback.message.edit_text(
@@ -785,7 +938,7 @@ async def cancel_delete_payment_callback(callback: CallbackQuery, state: FSMCont
         else:
             await callback.message.edit_text(
                 "Kelajakdagi to'lovlar topilmadi.",
-                reply_markup=get_manage_menu(),
+                reply_markup=get_manage_menu(), # type: ignore
             )
         return
 
@@ -797,5 +950,5 @@ async def cancel_delete_payment_callback(callback: CallbackQuery, state: FSMCont
     else:
         await callback.message.edit_text(
             "Amal bekor qilindi.",
-            reply_markup=get_main_menu(),
+            reply_markup=get_main_menu(), # type: ignore
         )

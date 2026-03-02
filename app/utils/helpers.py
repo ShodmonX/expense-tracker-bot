@@ -4,6 +4,7 @@ import re
 
 def parse_date(date_str: str) -> Optional[date]:
     """Parse date from various formats"""
+    date_str = date_str.strip()
     formats = [
         "%d.%m.%Y", "%d/%m/%Y", "%d-%m-%Y",
         "%Y.%m.%d", "%Y/%m/%d", "%Y-%m-%d",
@@ -52,7 +53,7 @@ def parse_amount(amount_str: str) -> Optional[float]:
     except:
         return None
 
-def get_week_range(date_obj: date = None) -> Tuple[date, date]:
+def get_week_range(date_obj: date | None = None) -> Tuple[date, date]:
     """Get start and end dates of week"""
     if date_obj is None:
         date_obj = date.today()
@@ -61,7 +62,7 @@ def get_week_range(date_obj: date = None) -> Tuple[date, date]:
     end = start + timedelta(days=6)
     return start, end
 
-def get_month_range(year: int = None, month: int = None) -> Tuple[date, date]:
+def get_month_range(year: int | None = None, month: int | None = None) -> Tuple[date, date]:
     """Get start and end dates of month"""
     today = date.today()
     year = year or today.year

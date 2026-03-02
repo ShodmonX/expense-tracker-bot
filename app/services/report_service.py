@@ -3,12 +3,13 @@ from datetime import datetime, date, timedelta
 from typing import List, Dict
 from models import Expense, Income
 from utils.excel_generator import generate_excel_report
+from utils.pdf_generator import generate_pdf_report
 from services.expense_service import ExpenseService
 from services.income_service import IncomeService
 
 class ReportService:
     @staticmethod
-    def generate_daily_report(db: Session, user_id: int, report_date: date = None) -> Dict:
+    def generate_daily_report(db: Session, user_id: int, report_date: date | None = None) -> Dict:
         if report_date is None:
             report_date = date.today()
         
@@ -76,7 +77,7 @@ class ReportService:
         }
 
     @staticmethod
-    def generate_monthly_report(db: Session, user_id: int, year: int = None, month: int = None) -> Dict:
+    def generate_monthly_report(db: Session, user_id: int, year: int | None = None, month: int | None = None) -> Dict:
         today = date.today()
         year = year or today.year
         month = month or today.month
@@ -111,7 +112,7 @@ class ReportService:
         }
 
     @staticmethod
-    def generate_yearly_report(db: Session, user_id: int, year: int = None) -> Dict:
+    def generate_yearly_report(db: Session, user_id: int, year: int | None = None) -> Dict:
         today = date.today()
         year = year or today.year
         
@@ -163,18 +164,18 @@ class ReportService:
         total_expenses = ExpenseService.get_total_expenses(db, user_id, expenses)
         category_totals = ExpenseService.get_expenses_by_category(db, user_id, start_date, end_date)
         
-        # Get income for custom period
-        total_income = 0
-        custom_incomes = []
-        current_date = start_date
-        while current_date <= end_date:
-            income_data = IncomeService.get_monthly_income(
-                db, user_id, current_date.year, current_date.month
+        # Get income for custom period once to avoid duplicate rows/sums.
+        custom_incomes = (
+            db.query(Income)
+            .filter(
+                Income.user_id == user_id,
+                Income.date >= start_date,
+                Income.date <= end_date,
             )
-            daily_incomes = [inc for inc in income_data['incomes'] if start_date <= inc.date <= end_date]
-            total_income += sum(inc.amount for inc in daily_incomes)
-            custom_incomes.extend(daily_incomes)
-            current_date = current_date + timedelta(days=1)
+            .order_by(Income.date)
+            .all()
+        )
+        total_income = sum(inc.amount for inc in custom_incomes)
         
         return {
             "period": f"Hisobot - {start_date.strftime('%d.%m.%Y')} dan {end_date.strftime('%d.%m.%Y')} gacha",
@@ -191,3 +192,7 @@ class ReportService:
     @staticmethod
     async def create_excel_report(report_data: Dict, filename: str) -> str:
         return await generate_excel_report(report_data, filename)
+
+    @staticmethod
+    async def create_pdf_report(report_data: Dict, filename: str) -> str:
+        return await generate_pdf_report(report_data, filename)

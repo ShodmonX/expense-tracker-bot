@@ -6,7 +6,7 @@ from models import Income
 
 class IncomeService:
     @staticmethod
-    def add_income(db: Session, user_id: int, amount: float, description: str, category: str = "Kirim", income_date: date = None) -> Income:
+    def add_income(db: Session, user_id: int, amount: float, description: str, category: str = "Kirim", income_date: date | None = None) -> Income:
         if income_date is None:
             income_date = date.today()
             
@@ -24,7 +24,7 @@ class IncomeService:
         return income
     
     @staticmethod
-    def get_total_income(db: Session, user_id: int, start_date: date = None, end_date: date = None) -> float:
+    def get_total_income(db: Session, user_id: int, start_date: date | None = None, end_date: date | None = None) -> float:
         query = db.query(Income).filter(Income.user_id == user_id)
         
         if start_date:
@@ -36,7 +36,7 @@ class IncomeService:
         return sum(income.amount for income in incomes)
     
     @staticmethod
-    def get_monthly_income(db: Session, user_id: int, year: int = None, month: int = None) -> dict:
+    def get_monthly_income(db: Session, user_id: int, year: int | None = None, month: int | None = None) -> dict:
         if year is None:
             year = date.today().year
         if month is None:

@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InaccessibleMessage
 from aiogram.fsm.context import FSMContext
 from datetime import date, timedelta
 
@@ -8,15 +8,31 @@ from keyboards import *
 from services.expense_service import ExpenseService
 from models import ExpenseType
 from utils.helpers import parse_amount, parse_date
-from database import get_db
+from database import run_db
 
 router = Router()
+
+@router.message(F.text == "💰 Xarajat qo'shish")
+async def add_expense_message(message: Message, state: FSMContext):
+    if message.from_user is None:
+        await message.answer("❌ Sizda foydalanuvchi ma'lumotlari mavjud emas.")
+        return
+    await state.update_data(user_id=message.from_user.id)
+    await message.answer(
+        "Xarajat miqdorini kiriting (so'm):\n\nMasalan: 150000 yoki 150 000",
+        reply_markup=get_cancel_keyboard()
+    )
+    await state.set_state(ExpenseStates.waiting_for_amount)
 
 @router.callback_query(F.data == "add_expense")
 async def add_expense(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.update_data(user_id=callback.from_user.id)
-    await callback.message.edit_text(
+    if callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
+
+    await callback.message.answer(
         "Xarajat miqdorini kiriting (so'm):\n\nMasalan: 150000 yoki 150 000",
         reply_markup=get_cancel_keyboard()
     )
@@ -24,6 +40,12 @@ async def add_expense(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ExpenseStates.waiting_for_amount)
 async def process_expense_amount(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer(
+            "❌ Xabarni to'ldirish kerak. Iltimos, miqdorni kiriting.",
+            reply_markup=get_cancel_keyboard()
+        )
+        return
     amount = parse_amount(message.text)
     
     if amount is None or amount <= 0:
@@ -43,9 +65,15 @@ async def process_expense_amount(message: Message, state: FSMContext):
 @router.callback_query(ExpenseStates.waiting_for_category, F.data.startswith("cat_"))
 async def process_expense_category(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    if callback.data is None:
+        return 
     category = callback.data.replace("cat_", "")
     await state.update_data(category=category)
     
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
+
     await callback.message.edit_text(
         "Sana tanlang yoki DD.MM.YYYY formatida yozing:",
         reply_markup=get_expense_date_keyboard()
@@ -57,6 +85,9 @@ async def process_expense_category(callback: CallbackQuery, state: FSMContext):
 async def expense_date_today(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.update_data(date=date.today())
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.message.edit_text(
         "Izoh qoldiring (ixtiyoriy):\n\nMasalan: Do'konda oziq-ovqat",
         reply_markup=get_skip_expense_description_keyboard(),
@@ -68,6 +99,9 @@ async def expense_date_today(callback: CallbackQuery, state: FSMContext):
 async def expense_date_yesterday(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.update_data(date=date.today() - timedelta(days=1))
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await callback.message.edit_text(
         "Izoh qoldiring (ixtiyoriy):\n\nMasalan: Do'konda oziq-ovqat",
         reply_markup=get_skip_expense_description_keyboard(),
@@ -77,6 +111,12 @@ async def expense_date_yesterday(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ExpenseStates.waiting_for_date)
 async def process_expense_date(message: Message, state: FSMContext):
+    if message.text is None:
+        await message.answer(
+            "❌ Xabarni to'ldirish kerak. Iltimos, sanani kiriting.",
+            reply_markup=get_cancel_keyboard()
+        )
+        return
     expense_date = parse_date(message.text)
  
     if expense_date is None:
@@ -107,7 +147,9 @@ async def skip_expense_description(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     await state.update_data(description=data.get("category", ""))
 
-    # Use a lightweight message object compatible with save_expense
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await save_expense(callback.message, state)
 
 @router.message(ExpenseStates.waiting_for_description)
@@ -118,17 +160,18 @@ async def process_expense_description(message: Message, state: FSMContext):
 
 async def save_expense(message: Message, state: FSMContext):
     data = await state.get_data()
-    
-    db = next(get_db())
-    expense = ExpenseService.add_expense(
-        db=db,
+    if message.from_user is None:
+        await message.answer("❌ Foydalanuvchi ma'lumotlari topilmadi.")
+        return
+    await run_db(
+        ExpenseService.add_expense,
         user_id=data.get('user_id') or message.from_user.id,
         amount=data['amount'],
         category=data['category'],
         description=data.get('description', ''),
         expense_date=data.get('date', date.today()),
         expense_type=ExpenseType.ONCE,
-        is_future=False
+        is_future=False,
     )
     
     message_text = f"✅ Xarajat muvaffaqiyatli qo'shildi!\n\n"
@@ -142,16 +185,36 @@ async def save_expense(message: Message, state: FSMContext):
     await state.clear()
 
 
+@router.message(F.text == "🧾 Oxirgi xarajatlar")
+async def manage_last_expenses_message(message: Message):
+    if message.from_user is None:
+        await message.answer("❌ Foydalanuvchi ma'lumotlari topilmadi.")
+        return
+    expenses = await run_db(ExpenseService.get_last_expenses, message.from_user.id, limit=30)
+
+    if not expenses:
+        await message.answer(
+            "Oxirgi xarajatlar topilmadi.",
+            reply_markup=get_manage_menu(),
+        )
+        return
+
+    await message.answer(
+        "Oxirgi xarajatlar (o'chirish uchun tanlang):",
+        reply_markup=get_manage_last_expenses_keyboard(expenses),
+    )
+
 @router.callback_query(F.data == "manage_last_expenses")
 async def manage_last_expenses(callback: CallbackQuery):
     await callback.answer()
-    db = next(get_db())
-    expenses = ExpenseService.get_last_expenses(db, callback.from_user.id, limit=30)
-
+    expenses = await run_db(ExpenseService.get_last_expenses, callback.from_user.id, limit=30)
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     if not expenses:
         await callback.message.edit_text(
             "Oxirgi xarajatlar topilmadi.",
-            reply_markup=get_manage_menu(),
+            reply_markup=get_manage_menu(), # type: ignore
         )
         return
 
@@ -164,20 +227,25 @@ async def manage_last_expenses(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("delete_expense_"))
 async def delete_expense_callback(callback: CallbackQuery):
     await callback.answer()
+    if callback.data is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     try:
         expense_id = int(callback.data.replace("delete_expense_", ""))
     except ValueError:
+        await callback.answer("❌ Xarajat ID noto'g'ri formatda.", show_alert=True)
         return
 
-    db = next(get_db())
-    deleted = ExpenseService.delete_expense(db, callback.from_user.id, expense_id)
-
-    expenses = ExpenseService.get_last_expenses(db, callback.from_user.id, limit=30)
+    deleted = await run_db(ExpenseService.delete_expense, callback.from_user.id, expense_id)
+    expenses = await run_db(ExpenseService.get_last_expenses, callback.from_user.id, limit=30)
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     if not expenses:
         text = "Oxirgi xarajatlar topilmadi." if deleted else "Xarajat topilmadi yoki o'chirish mumkin emas."
         await callback.message.edit_text(
             text,
-            reply_markup=get_manage_menu(),
+            reply_markup=get_manage_menu(), # type: ignore
         )
         return
 

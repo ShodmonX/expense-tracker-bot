@@ -8,7 +8,16 @@ from services.expense_service import ExpenseService
 
 class BalanceService:
     @staticmethod
-    def get_monthly_balance_summary(db: Session, user_id: int, year: int = None, month: int = None) -> Dict:
+    def _month_bounds(year: int, month: int) -> tuple[date, date]:
+        start_date = date(year, month, 1)
+        if month == 12:
+            end_date = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = date(year, month + 1, 1) - timedelta(days=1)
+        return start_date, end_date
+
+    @staticmethod
+    def get_monthly_balance_summary(db: Session, user_id: int, year: int | None = None, month: int | None = None) -> Dict:
         """
         Calculate comprehensive balance summary for a specific month
         """
@@ -18,11 +27,7 @@ class BalanceService:
             month = date.today().month
             
         # Get month boundaries
-        start_date = date(year, month, 1)
-        if month == 12:
-            end_date = date(year + 1, 1, 1) - timedelta(days=1)
-        else:
-            end_date = date(year, month + 1, 1) - timedelta(days=1)
+        start_date, end_date = BalanceService._month_bounds(year, month)
         
         # Get income data
         income_data = IncomeService.get_monthly_income(db, user_id, year, month)
@@ -43,21 +48,24 @@ class BalanceService:
         # Calculate balance
         available_balance = total_income - total_expenses
         
-        # Get previous month balance (carry-over)
+        # Get previous month net balance as carry-over without recursion.
         if month == 1:
             prev_year = year - 1
             prev_month = 12
         else:
             prev_year = year
             prev_month = month - 1
-            
-        try:
-            prev_month_summary = BalanceService.get_monthly_balance_summary(
-                db, user_id, prev_year, prev_month
-            )
-            carry_over = prev_month_summary['available_balance']
-        except:
-            carry_over = 0.0
+
+        prev_income_data = IncomeService.get_monthly_income(db, user_id, prev_year, prev_month)
+        prev_total_income = prev_income_data["total_amount"]
+        prev_start_date, prev_end_date = BalanceService._month_bounds(prev_year, prev_month)
+        prev_expenses = db.query(Expense).filter(
+            Expense.user_id == user_id,
+            Expense.date >= prev_start_date,
+            Expense.date <= prev_end_date
+        ).all()
+        prev_total_expenses = sum(exp.amount for exp in prev_expenses)
+        carry_over = prev_total_income - prev_total_expenses
         
         return {
             'year': year,
@@ -84,7 +92,7 @@ class BalanceService:
         return BalanceService.get_monthly_balance_summary(db, user_id)
     
     @staticmethod
-    def get_yearly_balance_summary(db: Session, user_id: int, year: int = None) -> Dict:
+    def get_yearly_balance_summary(db: Session, user_id: int, year: int | None = None) -> Dict:
         """
         Get yearly balance summary with month-by-month breakdown
         """

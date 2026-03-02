@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import InaccessibleMessage, Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from datetime import date, datetime
 
@@ -7,17 +7,31 @@ from states import IncomeStates
 from keyboards import *
 from services.income_service import IncomeService
 from utils.helpers import parse_amount, parse_date
-from database import get_db
+from database import run_db
 
 router = Router()
+
+@router.message(F.text == "💵 Kirim qo'shish")
+async def add_income_message(message: Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(IncomeStates.waiting_for_amount)
+    
+    await message.answer(
+        "💰 **Kirim miqdorini kiriting:**\n\n"
+        "Masalan: 50000",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="Markdown"
+    )
 
 @router.callback_query(F.data == "add_income")
 async def add_income_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.clear()
     await state.set_state(IncomeStates.waiting_for_amount)
-    
-    await callback.message.edit_text(
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
+    await callback.message.answer(
         "💰 **Kirim miqdorini kiriting:**\n\n"
         "Masalan: 50000",
         reply_markup=get_cancel_keyboard(),
@@ -26,8 +40,14 @@ async def add_income_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.message(IncomeStates.waiting_for_amount)
 async def process_income_amount(message: Message, state: FSMContext):
+    if message.text is None:
+        await message.answer("❌ Xabarni to'ldirish kerak. Iltimos, miqdorni kiriting:")
+        return
     try:
         amount = parse_amount(message.text)
+        if amount is None:
+            await message.answer("❌ Noto'g'ri miqdor formati. Iltimos, faqat raqamlarni kiriting:")
+            return
         if amount <= 0:
             await message.answer("❌ Miqdor 0 dan katta bo'lishi kerak. Qaytadan kiriting:")
             return
@@ -45,6 +65,9 @@ async def process_income_amount(message: Message, state: FSMContext):
 
 @router.message(IncomeStates.waiting_for_category)
 async def process_income_category(message: Message, state: FSMContext):
+    if message.text is None:
+        await message.answer("❌ Xabarni to'ldirish kerak. Iltimos, kategoriyani kiriting:")
+        return
     category = message.text.strip() or "Kirim"
     await state.update_data(category=category)
     await state.set_state(IncomeStates.waiting_for_description)
@@ -56,10 +79,13 @@ async def process_income_category(message: Message, state: FSMContext):
     )
 
 @router.callback_query(F.data == "skip_income_description")
-async def skip_income_description(callback: CallbackQuery, state: FSMContext):
+async def skip_income_description_s(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
     category = data.get('category', 'Kirim')
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     
     await state.update_data(description=category)
     await state.set_state(IncomeStates.waiting_for_date)
@@ -74,6 +100,9 @@ async def skip_income_description(callback: CallbackQuery, state: FSMContext):
 
 @router.message(IncomeStates.waiting_for_description)
 async def process_income_description(message: Message, state: FSMContext):
+    if message.text is None:
+        await message.answer("❌ Xabarni to'ldirish kerak. Iltimos, izohni kiriting:")
+        return
     description = message.text.strip()
     await state.update_data(description=description)
     await state.set_state(IncomeStates.waiting_for_date)
@@ -98,8 +127,17 @@ async def use_today_date_income(callback: CallbackQuery, state: FSMContext):
 
 @router.message(IncomeStates.waiting_for_date)
 async def process_income_date(message: Message, state: FSMContext):
+    if message.text is None:
+        await message.answer("❌ Xabarni to'ldirish kerak. Iltimos, sanani kiriting:")
+        return
     try:
         income_date = parse_date(message.text)
+        if income_date is None:
+            await message.answer(
+                "❌ Noto'g'ri sana formati. Iltimos, DD.MM.YYYY formatida kiriting:\n\n"
+                "Masalan: 05.01.2026"
+            )
+            return
         await save_income(message, state, income_date)
     except ValueError:
         await message.answer(
@@ -125,14 +163,13 @@ async def save_income(message_or_callback, state: FSMContext, income_date: date)
         await state.clear()
         return
     
-    db = next(get_db())
-    income = IncomeService.add_income(
-        db=db,
+    income = await run_db(
+        IncomeService.add_income,
         user_id=message_or_callback.from_user.id,
         amount=data['amount'],
         description=data['description'],
         category=data['category'],
-        income_date=income_date
+        income_date=income_date,
     )
     
     # Format success message
@@ -162,8 +199,10 @@ async def save_income(message_or_callback, state: FSMContext, income_date: date)
 @router.callback_query(F.data == "income_summary")
 async def show_income_summary(callback: CallbackQuery):
     await callback.answer()
-    db = next(get_db())
-    summary = IncomeService.get_monthly_income(db, callback.from_user.id)
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
+    summary = await run_db(IncomeService.get_monthly_income, callback.from_user.id)
     
     message_text = f"💵 **{summary['month_name']} oylik kirim xulosasi**\n\n"
     
@@ -190,6 +229,10 @@ async def show_income_summary(callback: CallbackQuery):
 @router.callback_query(F.data == "skip_income_description")
 async def skip_income_description(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
+    
     data = await state.get_data()
     category = data.get('category', 'Kirim')
     
@@ -204,9 +247,15 @@ async def skip_income_description(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_today_keyboard()
     )
 
-@router.callback_query(F.data.startswith("income_category_"))
+@router.callback_query(IncomeStates.waiting_for_category, F.data.startswith("income_category_"))
 async def process_income_category_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
+    if callback.data is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     category = callback.data.replace("income_category_", "")
     await state.update_data(category=category)
     await state.set_state(IncomeStates.waiting_for_description)
@@ -220,8 +269,11 @@ async def process_income_category_callback(callback: CallbackQuery, state: FSMCo
 @router.callback_query(F.data == "cancel")
 async def cancel_income(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
+        await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
+        return
     await state.clear()
     await callback.message.edit_text(
         "❌ Bekor qilindi.",
-        reply_markup=get_main_menu()
+        reply_markup=get_main_menu() # type: ignore
     )

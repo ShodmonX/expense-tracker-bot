@@ -5,11 +5,13 @@ from datetime import datetime
 import os
 from typing import Dict, List
 
-async def generate_excel_report(report_data: Dict, filename: str = None) -> str:
+async def generate_excel_report(report_data: Dict, filename: str | None = None) -> str:
     """Generate Excel report from report data"""
     
     wb = openpyxl.Workbook()
     ws = wb.active
+    if ws is None:
+        ws = wb.create_sheet("Hisobot")
     ws.title = "Hisobot"
     
     # Styles
@@ -40,7 +42,7 @@ async def generate_excel_report(report_data: Dict, filename: str = None) -> str:
     headers = ["Sana", "Turi", "Kategoriya", "Miqdor (so'm)", "Izoh"]
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=3, column=col_num)
-        cell.value = header
+        cell.value = header if header else "None Header" # pyright: ignore[reportAttributeAccessIssue] # 
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = header_alignment
@@ -144,7 +146,7 @@ async def generate_excel_report(report_data: Dict, filename: str = None) -> str:
     # Auto-adjust column widths
     for column in ws.columns:
         max_length = 0
-        column_letter = get_column_letter(column[0].column)
+        column_letter = get_column_letter(column[0].column if column[0].column else 1)
         for cell in column:
             try:
                 if len(str(cell.value)) > max_length:
