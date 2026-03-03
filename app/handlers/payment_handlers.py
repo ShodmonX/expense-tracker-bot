@@ -20,6 +20,23 @@ def _is_admin(user_id: int) -> bool:
     return bool(config.ADMIN_ID) and user_id == config.ADMIN_ID
 
 
+def _format_money(amount: float) -> str:
+    return f"{amount:,.0f}".replace(",", " ")
+
+
+def _build_upcoming_payments_text(totals: dict[str, float], has_30_day_items: bool) -> str:
+    text = "🔔 Kelgusi to'lovlar\n\n"
+    text += "📊 Umumiy ko'rsatkichlar:\n"
+    text += f"📆 Ushbu hafta: {_format_money(totals.get('this_week_total', 0.0))} so'm\n"
+    text += f"🗓 Ushbu oy: {_format_money(totals.get('this_month_total', 0.0))} so'm\n"
+    text += f"📈 Barcha kelgusi: {_format_money(totals.get('all_future_total', 0.0))} so'm\n\n"
+    if has_30_day_items:
+        text += "To'lovni ko'rish uchun tanlang:"
+    else:
+        text += "Keyingi 30 kun ichida to'lovlar topilmadi."
+    return text
+
+
 async def _edit_then_show_main_menu(callback: CallbackQuery, text: str) -> None:
     if isinstance(callback.message, InaccessibleMessage) or callback.message is None:
         return
@@ -406,17 +423,18 @@ async def show_upcoming_payments_message(message: Message):
     if message.from_user is None:
         await message.answer("❌ Foydalanuvchi ma'lumotlari noto'g'ri.")
         return
+    totals = await run_db(PaymentService.get_upcoming_totals, message.from_user.id)
     payments = await run_db(PaymentService.get_upcoming_payments, message.from_user.id, days_ahead=30)
     
     if not payments:
         await message.answer(
-            "🔔 Keyingi 30 kun ichida to'lovlar topilmadi.",
+            _build_upcoming_payments_text(totals, has_30_day_items=False),
             reply_markup=get_main_menu(), # type: ignore
         )
         return
 
     await message.answer(
-        "🔔 Kelgusi to'lovlar (30 kun):\n\nTo'lovni ko'rish uchun tanlang:",
+        _build_upcoming_payments_text(totals, has_30_day_items=True),
         reply_markup=get_upcoming_payments_keyboard(payments),
     )
 
@@ -426,14 +444,18 @@ async def show_upcoming_payments(callback: CallbackQuery):
         await callback.answer("❌ Xabarni ko'rish mumkin emas.", show_alert=True)
         return
     await callback.answer()
+    totals = await run_db(PaymentService.get_upcoming_totals, callback.from_user.id)
     payments = await run_db(PaymentService.get_upcoming_payments, callback.from_user.id, days_ahead=30)
     
     if not payments:
-        await _edit_then_show_main_menu(callback, "🔔 Keyingi 30 kun ichida to'lovlar topilmadi.")
+        await _edit_then_show_main_menu(
+            callback,
+            _build_upcoming_payments_text(totals, has_30_day_items=False),
+        )
         return
 
     await callback.message.edit_text(
-        "🔔 Kelgusi to'lovlar (30 kun):\n\nTo'lovni ko'rish uchun tanlang:",
+        _build_upcoming_payments_text(totals, has_30_day_items=True),
         reply_markup=get_upcoming_payments_keyboard(payments),
     )
 

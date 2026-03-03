@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime, date, timedelta
 from typing import List, Optional
 import calendar
@@ -285,6 +286,39 @@ class PaymentService:
             Payment.is_paid == False,
             Payment.is_skipped == False,
         ).order_by(Payment.due_date).all()
+
+    @staticmethod
+    def get_upcoming_totals(db: Session, user_id: int) -> dict[str, float]:
+        PaymentService.normalize_recurring_payments(db, user_id=user_id)
+        today = date.today()
+        week_end = today + timedelta(days=(6 - today.weekday()))
+        if today.month == 12:
+            month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
+        base_query = db.query(Payment).filter(
+            Payment.user_id == user_id,
+            Payment.due_date >= today,
+            Payment.is_paid == False,
+            Payment.is_skipped == False,
+        )
+
+        all_total = base_query.with_entities(
+            func.coalesce(func.sum(Payment.amount), 0.0)
+        ).scalar() or 0.0
+        week_total = base_query.filter(Payment.due_date <= week_end).with_entities(
+            func.coalesce(func.sum(Payment.amount), 0.0)
+        ).scalar() or 0.0
+        month_total = base_query.filter(Payment.due_date <= month_end).with_entities(
+            func.coalesce(func.sum(Payment.amount), 0.0)
+        ).scalar() or 0.0
+
+        return {
+            "this_week_total": float(week_total),
+            "this_month_total": float(month_total),
+            "all_future_total": float(all_total),
+        }
 
     @staticmethod
     def get_monthly_payment_summary(db: Session, user_id: int) -> dict:
