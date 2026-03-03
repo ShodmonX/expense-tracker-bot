@@ -304,9 +304,11 @@ class PaymentService:
             Payment.is_skipped == False,
         )
 
-        all_total = base_query.with_entities(
-            func.coalesce(func.sum(Payment.amount), 0.0)
-        ).scalar() or 0.0
+        all_total = 0.0
+        for payment in base_query.all():
+            multiplier = payment.occurrences_left if payment.occurrences_left is not None else 1
+            all_total += float(payment.amount) * float(multiplier)
+
         week_total = base_query.filter(Payment.due_date <= week_end).with_entities(
             func.coalesce(func.sum(Payment.amount), 0.0)
         ).scalar() or 0.0
