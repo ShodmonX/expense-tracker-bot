@@ -22,6 +22,7 @@ from handlers import (
 )
 from services.db_backup.scheduler import setup_backup_scheduler
 from services.reminder_service import ReminderService
+from middlewares import SafeDeleteHandledMessagesMiddleware
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -42,6 +43,7 @@ async def main():
     bot = Bot(token=config.BOT_TOKEN)
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
+    dp.message.outer_middleware(SafeDeleteHandledMessagesMiddleware())
 
     for router in routers:
         dp.include_router(router)
